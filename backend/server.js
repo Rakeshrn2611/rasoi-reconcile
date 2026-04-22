@@ -107,33 +107,37 @@ app.put('/api/venues/:id', (req, res) => {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 app.get('/api/dashboard/stats', (req, res) => {
-  const now   = new Date();
-  const year  = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const from  = `${year}-${month}-01`;
-  const to    = `${year}-${month}-31`;
+  const now = new Date();
+  const { venue_id, from, to } = req.query;
+
+  const f = from || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  const t = to   || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-31`;
+
+  const vc   = venue_id ? ' AND venue_id=?'    : '';
+  const mrvc = venue_id ? ' AND mr.venue_id=?' : '';
+  const vp   = venue_id ? [venue_id] : [];
 
   const totals = db.prepare(`
     SELECT COALESCE(SUM(cash_sales),0) as total_cash,
            COALESCE(SUM(card_sales),0) as total_card,
            COALESCE(SUM(total_sales),0) as total
-    FROM manager_reports WHERE date>=? AND date<=?`).get(from, to);
+    FROM manager_reports WHERE date>=? AND date<=?${vc}`).get(f, t, ...vp);
 
   const reconciled = db.prepare(`
     SELECT COUNT(*) as count FROM manager_reports mr
     JOIN square_data sd ON sd.venue_id=mr.venue_id AND sd.date=mr.date
-    WHERE mr.date>=? AND mr.date<=?`).get(from, to);
+    WHERE mr.date>=? AND mr.date<=?${mrvc}`).get(f, t, ...vp);
 
   const pending = db.prepare(`
     SELECT COUNT(*) as count FROM manager_reports mr
     LEFT JOIN square_data sd ON sd.venue_id=mr.venue_id AND sd.date=mr.date
-    WHERE mr.date>=? AND mr.date<=? AND sd.id IS NULL`).get(from, to);
+    WHERE mr.date>=? AND mr.date<=?${mrvc} AND sd.id IS NULL`).get(f, t, ...vp);
 
   const variance = db.prepare(`
     SELECT COALESCE(SUM(ABS(mr.cash_sales-sd.cash)),0) as total_variance
     FROM manager_reports mr
     JOIN square_data sd ON sd.venue_id=mr.venue_id AND sd.date=mr.date
-    WHERE mr.date>=? AND mr.date<=?`).get(from, to);
+    WHERE mr.date>=? AND mr.date<=?${mrvc}`).get(f, t, ...vp);
 
   const recent = db.prepare(`
     SELECT mr.*, v.name as venue_name,
@@ -141,40 +145,42 @@ app.get('/api/dashboard/stats', (req, res) => {
     FROM manager_reports mr
     JOIN venues v ON v.id=mr.venue_id
     LEFT JOIN square_data sd ON sd.venue_id=mr.venue_id AND sd.date=mr.date
-    ORDER BY mr.created_at DESC LIMIT 5`).all();
+    ${venue_id ? 'WHERE mr.venue_id=?' : ''}
+    ORDER BY mr.created_at DESC LIMIT 10
+  `).all(...(venue_id ? [venue_id] : []));
 
   // Monthly detail aggregates
-  const refundTotal = db.prepare(`SELECT COALESCE(SUM(amount),0) as total, COUNT(*) as count FROM square_refund_details WHERE date>=? AND date<=?`).get(from, to);
-  const compTotal   = db.prepare(`SELECT COALESCE(SUM(amount),0) as total, COUNT(*) as count FROM square_comp_details WHERE date>=? AND date<=?`).get(from, to);
-  const discTotal   = db.prepare(`SELECT COALESCE(SUM(amount),0) as total, COUNT(*) as count FROM square_discount_details WHERE date>=? AND date<=?`).get(from, to);
-  const gcTotal     = db.prepare(`SELECT COALESCE(SUM(amount),0) as total, COUNT(*) as count FROM square_gift_card_details WHERE activity_type='REDEEM' AND date>=? AND date<=?`).get(from, to);
+  const refundTotal = db.prepare(`SELECT COALESCE(SUM(amount),0) as total, COUNT(*) as count FROM square_refund_details WHERE date>=? AND date<=?${vc}`).get(f, t, ...vp);
+  const compTotal   = db.prepare(`SELECT COALESCE(SUM(amount),0) as total, COUNT(*) as count FROM square_comp_details WHERE date>=? AND date<=?${vc}`).get(f, t, ...vp);
+  const discTotal   = db.prepare(`SELECT COALESCE(SUM(amount),0) as total, COUNT(*) as count FROM square_discount_details WHERE date>=? AND date<=?${vc}`).get(f, t, ...vp);
+  const gcTotal     = db.prepare(`SELECT COALESCE(SUM(amount),0) as total, COUNT(*) as count FROM square_gift_card_details WHERE activity_type='REDEEM' AND date>=? AND date<=?${vc}`).get(f, t, ...vp);
 
-  // Discount type breakdown for the month
+  // Discount type breakdown for the period
   const discByType = db.prepare(`
     SELECT discount_name, discount_type, scope,
            COUNT(*) as occurrences, COALESCE(SUM(amount),0) as total_amount
-    FROM square_discount_details WHERE date>=? AND date<=?
+    FROM square_discount_details WHERE date>=? AND date<=?${vc}
     GROUP BY discount_name, discount_type, scope
-    ORDER BY total_amount DESC LIMIT 10`).all(from, to);
+    ORDER BY total_amount DESC LIMIT 10`).all(f, t, ...vp);
 
   // Recent refunds (last 10)
   const recentRefunds = db.prepare(`
     SELECT rd.*, v.name as venue_name FROM square_refund_details rd
     JOIN venues v ON v.id=rd.venue_id
-    WHERE rd.date>=? AND rd.date<=? ORDER BY rd.created_at DESC LIMIT 10`).all(from, to);
+    WHERE rd.date>=? AND rd.date<=?${vc.replace('venue_id', 'rd.venue_id')} ORDER BY rd.created_at DESC LIMIT 10`).all(f, t, ...vp);
 
   // Recent comps (last 10)
   const recentComps = db.prepare(`
     SELECT cd.*, v.name as venue_name FROM square_comp_details cd
     JOIN venues v ON v.id=cd.venue_id
-    WHERE cd.date>=? AND cd.date<=? ORDER BY cd.created_at DESC LIMIT 10`).all(from, to);
+    WHERE cd.date>=? AND cd.date<=?${vc.replace('venue_id', 'cd.venue_id')} ORDER BY cd.created_at DESC LIMIT 10`).all(f, t, ...vp);
 
   // Recent gift card redemptions (last 10)
   const recentGiftCards = db.prepare(`
     SELECT gd.*, v.name as venue_name FROM square_gift_card_details gd
     JOIN venues v ON v.id=gd.venue_id
-    WHERE gd.date>=? AND gd.date<=? AND gd.activity_type='REDEEM'
-    ORDER BY gd.created_at DESC LIMIT 10`).all(from, to);
+    WHERE gd.date>=? AND gd.date<=?${vc.replace('venue_id', 'gd.venue_id')} AND gd.activity_type='REDEEM'
+    ORDER BY gd.created_at DESC LIMIT 10`).all(f, t, ...vp);
 
   res.json({
     total_cash:    totals.total_cash,
