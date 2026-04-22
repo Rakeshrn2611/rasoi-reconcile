@@ -113,7 +113,7 @@ export default function Reconcile({ venues, showToast }) {
               <label htmlFor="file-up" style={{ ...s.drop, ...(file ? s.dropActive : {}) }}>
                 <span style={{ fontSize: 28 }}>{file ? '✓' : FILE_TYPES.find(f => f.id === fileType)?.icon}</span>
                 <span style={{ fontSize: 14, fontWeight: 500 }}>{file ? file.name : 'Click to choose file'}</span>
-                <span style={{ fontSize: 11, color: '#94a3b8' }}>{FILE_TYPES.find(f => f.id === fileType)?.hint}</span>
+                <span style={{ fontSize: 11, color: '#a89078' }}>{FILE_TYPES.find(f => f.id === fileType)?.hint}</span>
               </label>
               {error && <p style={s.err}>{error}</p>}
               <button type="submit" disabled={uploading || !file} style={s.btn}>
@@ -170,19 +170,19 @@ export default function Reconcile({ venues, showToast }) {
           {!result ? (
             <div style={s.placeholder}>
               <span style={{ fontSize: 40 }}>⚖</span>
-              <p style={{ fontSize: 14, color: '#94a3b8', textAlign: 'center' }}>
+              <p style={{ fontSize: 14, color: '#a89078', textAlign: 'center' }}>
                 Submit a manager report and click <strong>Reconcile</strong>.
               </p>
             </div>
           ) : (
             <>
-              <div style={{ ...s.statusBanner, background: isOk ? '#f0fdf4' : '#fffbeb', borderColor: isOk ? '#86efac' : '#fde68a' }}>
+              <div style={{ ...s.statusBanner, background: isOk ? '#f0f5e8' : '#fdf5e0', borderColor: isOk ? '#b5d08a' : '#f0c97a' }}>
                 <span style={{ fontSize: 22 }}>{isOk ? '✓' : '⚠'}</span>
                 <div>
-                  <p style={{ fontWeight: 700, color: isOk ? '#166534' : '#92400e' }}>
+                  <p style={{ fontWeight: 700, color: isOk ? '#4a6622' : '#7c5200' }}>
                     {isOk ? 'All figures match' : `${r.flags.length} variance${r.flags.length !== 1 ? 's' : ''} found`}
                   </p>
-                  <p style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                  <p style={{ fontSize: 12, color: '#7d6553', marginTop: 2 }}>
                     {selectedVenue?.name} · {fDate(date)}
                   </p>
                 </div>
@@ -193,10 +193,10 @@ export default function Reconcile({ venues, showToast }) {
               ))}
 
               <div style={s.metricsHeader}>
-                <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700 }}>FIELD</span>
-                <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700 }}>MANAGER</span>
-                <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700 }}>SQUARE</span>
-                <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700 }}>VARIANCE</span>
+                <span style={{ color: '#a89078', fontSize: 11, fontWeight: 700 }}>FIELD</span>
+                <span style={{ color: '#a89078', fontSize: 11, fontWeight: 700 }}>MANAGER</span>
+                <span style={{ color: '#a89078', fontSize: 11, fontWeight: 700 }}>SQUARE</span>
+                <span style={{ color: '#a89078', fontSize: 11, fontWeight: 700 }}>VARIANCE</span>
               </div>
               <MetricRow label="Cash"  manager={result.report.cash_sales}  square={result.square.cash}  variance={r.cashVar} />
               <MetricRow label="Card"  manager={result.report.card_sales}  square={result.square.card}  variance={r.cardVar} />
@@ -239,7 +239,7 @@ export default function Reconcile({ venues, showToast }) {
                 columns={['Receipt #','Amount','Reason','Status']}
                 render={r => [
                   <code style={s.code}>{r.receipt_number}</code>,
-                  <span style={{ color:'#ef4444', fontWeight:700 }}>£{f2(r.amount)}</span>,
+                  <span style={{ color:'#c1440e', fontWeight:700 }}>£{f2(r.amount)}</span>,
                   r.reason || '—',
                   r.status,
                 ]}
@@ -256,7 +256,7 @@ export default function Reconcile({ venues, showToast }) {
                   c.item_name,
                   c.variation_name || '—',
                   c.quantity,
-                  <span style={{ color:'#f59e0b', fontWeight:700 }}>£{f2(c.amount)}</span>,
+                  <span style={{ color:'#c88a2e', fontWeight:700 }}>£{f2(c.amount)}</span>,
                 ]}
               />
             )}
@@ -271,7 +271,7 @@ export default function Reconcile({ venues, showToast }) {
                   d.discount_name,
                   <Tag text={d.discount_type} />,
                   <Tag text={d.scope} light />,
-                  <span style={{ color:'#8b5cf6', fontWeight:700 }}>£{f2(d.amount)}</span>,
+                  <span style={{ color:'#7c5c2e', fontWeight:700 }}>£{f2(d.amount)}</span>,
                 ]}
               />
             )}
@@ -285,7 +285,7 @@ export default function Reconcile({ venues, showToast }) {
                   <code style={s.code}>{g.receipt_number}</code>,
                   <code style={s.code}>···· {g.gift_card_last4}</code>,
                   <Tag text={g.activity_type} />,
-                  <span style={{ color:'#0ea5e9', fontWeight:700 }}>£{f2(g.amount)}</span>,
+                  <span style={{ color:'#2563eb', fontWeight:700 }}>£{f2(g.amount)}</span>,
                 ]}
               />
             )}
@@ -301,11 +301,11 @@ export default function Reconcile({ venues, showToast }) {
 function MetricRow({ label, manager, square, variance, bold }) {
   const isNeg = variance < -0.01, isPos = variance > 0.01;
   return (
-    <div style={{ ...s.metricRow, fontWeight: bold ? 700 : 400, borderTop: bold ? '1px solid #f1f5f9' : 'none', paddingTop: bold ? 8 : 0, marginTop: bold ? 4 : 0 }}>
-      <span style={{ color: '#64748b', fontSize: 13 }}>{label}</span>
+    <div style={{ ...s.metricRow, fontWeight: bold ? 700 : 400, borderTop: bold ? '1px solid #f5ede0' : 'none', paddingTop: bold ? 8 : 0, marginTop: bold ? 4 : 0 }}>
+      <span style={{ color: '#7d6553', fontSize: 13 }}>{label}</span>
       <span style={{ fontSize: 13 }}>£{f2(manager)}</span>
       <span style={{ fontSize: 13 }}>£{f2(square)}</span>
-      <span style={{ fontSize: 13, color: isNeg ? '#ef4444' : isPos ? '#22c55e' : '#94a3b8' }}>
+      <span style={{ fontSize: 13, color: isNeg ? '#c1440e' : isPos ? '#5a7a30' : '#a89078' }}>
         {isNeg ? `−£${f2(Math.abs(variance))}` : isPos ? `+£${f2(variance)}` : '—'}
       </span>
     </div>
@@ -314,22 +314,22 @@ function MetricRow({ label, manager, square, variance, bold }) {
 
 function ExtraChip({ label, value, warn }) {
   return (
-    <div style={{ ...s.chip, background: warn ? '#fef9c3' : '#f8fafc', borderColor: warn ? '#fde68a' : '#e2e8f0' }}>
-      <span style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>{label}</span>
-      <span style={{ fontSize: 15, fontWeight: 700, color: warn ? '#92400e' : '#374151' }}>£{f2(value)}</span>
+    <div style={{ ...s.chip, background: warn ? '#fdf5e0' : '#fefcf9', borderColor: warn ? '#e8c97a' : '#ede8e0' }}>
+      <span style={{ fontSize: 10, color: '#7d6553', fontWeight: 600 }}>{label}</span>
+      <span style={{ fontSize: 15, fontWeight: 700, color: warn ? '#7c3d0e' : '#4a3728' }}>£{f2(value)}</span>
     </div>
   );
 }
 
 function DetailSection({ items, columns, render, empty }) {
-  if (!items.length) return <p style={{ color: '#94a3b8', fontSize: 13, padding: '12px 0' }}>{empty}</p>;
+  if (!items.length) return <p style={{ color: '#a89078', fontSize: 13, padding: '12px 0' }}>{empty}</p>;
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={s.dtTable}>
         <thead><tr>{columns.map(c => <th key={c} style={s.dtTh}>{c}</th>)}</tr></thead>
         <tbody>
           {items.map((item, i) => (
-            <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+            <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#fefcf9' }}>
               {render(item).map((cell, j) => <td key={j} style={s.dtTd}>{cell}</td>)}
             </tr>
           ))}
@@ -340,7 +340,7 @@ function DetailSection({ items, columns, render, empty }) {
 }
 
 function Tag({ text, light }) {
-  return <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, background: light ? '#f1f5f9' : '#e0e7ff', color: light ? '#64748b' : '#3730a3', fontWeight: 600 }}>{text}</span>;
+  return <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, background: light ? '#f5ede0' : '#fef3ee', color: light ? '#7d6553' : '#9a2e05', fontWeight: 600 }}>{text}</span>;
 }
 
 const f2    = n => (Number(n) || 0).toFixed(2);
@@ -353,40 +353,40 @@ const s = {
   left:  { display: 'flex', flexDirection: 'column', gap: 16 },
   right: { display: 'flex', flexDirection: 'column', gap: 16, position: 'sticky', top: 88 },
 
-  card:      { background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 12 },
-  cardTitle: { fontSize: 15, fontWeight: 700, color: '#0f172a' },
-  hint:      { fontSize: 13, color: '#64748b' },
+  card:      { background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(45,31,20,0.06)', border: '1px solid #ede8e0', display: 'flex', flexDirection: 'column', gap: 12 },
+  cardTitle: { fontSize: 15, fontWeight: 700, color: '#2d1f14' },
+  hint:      { fontSize: 13, color: '#7d6553' },
 
   venueBtns:      { display: 'flex', flexDirection: 'column', gap: 8 },
-  venueBtn:       { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 9, border: '2px solid #e2e8f0', background: '#fff', fontSize: 14, color: '#374151', fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' },
-  venueBtnActive: { border: '2px solid #3b82f6', background: '#eff6ff', color: '#1d4ed8' },
-  venueInitial:   { width: 28, height: 28, borderRadius: 7, background: '#3b82f6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 },
+  venueBtn:       { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 9, border: '2px solid #ede8e0', background: '#fff', fontSize: 14, color: '#4a3728', fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' },
+  venueBtnActive: { border: '2px solid #c1440e', background: '#fef3ee', color: '#9a2e05' },
+  venueInitial:   { width: 28, height: 28, borderRadius: 7, background: '#c1440e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 },
 
-  modeTabs: { display: 'flex', border: '1px solid #e2e8f0', borderRadius: 8, padding: 3, gap: 3 },
-  modeTab:  { flex: 1, padding: '7px 0', border: 'none', background: 'none', fontSize: 13, color: '#64748b', borderRadius: 6, cursor: 'pointer' },
-  modeActive:{ flex: 1, padding: '7px 0', border: 'none', background: '#f8fafc', fontSize: 13, color: '#0f172a', borderRadius: 6, fontWeight: 700, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', cursor: 'pointer' },
+  modeTabs:  { display: 'flex', border: '1px solid #ede8e0', borderRadius: 8, padding: 3, gap: 3 },
+  modeTab:   { flex: 1, padding: '7px 0', border: 'none', background: 'none', fontSize: 13, color: '#7d6553', borderRadius: 6, cursor: 'pointer' },
+  modeActive:{ flex: 1, padding: '7px 0', border: 'none', background: '#fefcf9', fontSize: 13, color: '#2d1f14', borderRadius: 6, fontWeight: 700, boxShadow: '0 1px 3px rgba(45,31,20,0.08)', cursor: 'pointer' },
 
   ftTabs:   { display: 'flex', gap: 6 },
-  ftTab:    { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', fontSize: 11, color: '#64748b', cursor: 'pointer', fontWeight: 500, flex: 1 },
-  ftActive: { border: '1px solid #3b82f6', background: '#eff6ff', color: '#1d4ed8' },
+  ftTab:    { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '8px 10px', border: '1px solid #ede8e0', borderRadius: 8, background: '#fff', fontSize: 11, color: '#7d6553', cursor: 'pointer', fontWeight: 500, flex: 1 },
+  ftActive: { border: '1px solid #c1440e', background: '#fef3ee', color: '#9a2e05' },
 
-  drop:       { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '2px dashed #e2e8f0', borderRadius: 10, padding: '22px 16px', cursor: 'pointer', textAlign: 'center' },
-  dropActive: { borderColor: '#3b82f6', background: '#eff6ff' },
+  drop:       { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '2px dashed #ede8e0', borderRadius: 10, padding: '22px 16px', cursor: 'pointer', textAlign: 'center' },
+  dropActive: { borderColor: '#c1440e', background: '#fef3ee' },
 
   manualGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
-  fieldLabel: { display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, fontWeight: 600, color: '#374151' },
-  input:      { padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 14, color: '#0f172a', width: '100%' },
+  fieldLabel: { display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, fontWeight: 600, color: '#4a3728' },
+  input:      { padding: '8px 10px', border: '1px solid #ede8e0', borderRadius: 7, fontSize: 14, color: '#2d1f14', width: '100%' },
 
-  err:     { color: '#ef4444', fontSize: 13 },
+  err:     { color: '#c1440e', fontSize: 13 },
   btnRow:  { display: 'flex', gap: 8 },
-  btn:     { padding: '9px 18px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
-  btnSec:  { padding: '9px 18px', background: '#f8fafc', color: '#374151', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, cursor: 'pointer' },
+  btn:     { padding: '9px 18px', background: '#c1440e', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' },
+  btnSec:  { padding: '9px 18px', background: '#fefcf9', color: '#4a3728', border: '1px solid #ede8e0', borderRadius: 8, fontSize: 14, cursor: 'pointer' },
 
   placeholder: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '40px 20px' },
 
   statusBanner: { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10, border: '1px solid' },
-  flag:         { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#fef9c3', borderRadius: 7, fontSize: 13, color: '#92400e' },
-  flagDot:      { width: 6, height: 6, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 },
+  flag:         { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#fdf5e0', borderRadius: 7, fontSize: 13, color: '#7c3d0e' },
+  flagDot:      { width: 6, height: 6, borderRadius: '50%', background: '#c88a2e', flexShrink: 0 },
 
   metricsHeader: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, padding: '4px 0' },
   metricRow:     { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, alignItems: 'center', padding: '3px 0' },
@@ -394,15 +394,15 @@ const s = {
   sqExtras: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 },
   chip:     { padding: '10px 12px', borderRadius: 8, border: '1px solid', display: 'flex', flexDirection: 'column', gap: 3 },
 
-  notes: { padding: '10px 14px', background: '#f8fafc', borderRadius: 8, fontSize: 13, color: '#374151' },
+  notes: { padding: '10px 14px', background: '#fefcf9', borderRadius: 8, fontSize: 13, color: '#4a3728' },
 
-  detailTabRow: { display: 'flex', gap: 4, borderBottom: '1px solid #f1f5f9', paddingBottom: 12 },
-  dtab:         { padding: '6px 14px', border: 'none', background: 'none', fontSize: 13, color: '#64748b', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 },
-  dtabActive:   { background: '#f1f5f9', color: '#0f172a', fontWeight: 700 },
-  badge:        { fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: '#ef4444', color: '#fff' },
+  detailTabRow: { display: 'flex', gap: 4, borderBottom: '1px solid #f5ede0', paddingBottom: 12 },
+  dtab:         { padding: '6px 14px', border: 'none', background: 'none', fontSize: 13, color: '#7d6553', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 },
+  dtabActive:   { background: '#fefcf9', color: '#2d1f14', fontWeight: 700 },
+  badge:        { fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: '#c1440e', color: '#fff' },
 
   dtTable: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  dtTh:    { padding: '7px 10px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px', borderBottom: '1px solid #f1f5f9' },
-  dtTd:    { padding: '9px 10px', borderBottom: '1px solid #f8fafc', verticalAlign: 'middle' },
-  code:    { fontFamily: 'monospace', fontSize: 12, background: '#f1f5f9', padding: '2px 6px', borderRadius: 4, color: '#374151' },
+  dtTh:    { padding: '7px 10px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#a89078', textTransform: 'uppercase', letterSpacing: '0.4px', borderBottom: '1px solid #f5ede0' },
+  dtTd:    { padding: '9px 10px', borderBottom: '1px solid #f5ede0', verticalAlign: 'middle' },
+  code:    { fontFamily: 'monospace', fontSize: 12, background: '#f5ede0', padding: '2px 6px', borderRadius: 4, color: '#4a3728' },
 };
