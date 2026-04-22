@@ -66,8 +66,8 @@ function ApiRow({ label, env, doc }) {
   return (
     <div style={s.apiRow}>
       <div>
-        <p style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>{label}</p>
-        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Get key: {doc}</p>
+        <p style={{ fontSize: 14, fontWeight: 600, color: '#2d1f14' }}>{label}</p>
+        <p style={{ fontSize: 11, color: '#a89078', marginTop: 2 }}>Get key: {doc}</p>
       </div>
       <div style={s.envTag}>{env}</div>
     </div>
@@ -77,26 +77,26 @@ function ApiRow({ label, env, doc }) {
 function ThresholdRow({ label, value }) {
   return (
     <div style={s.thresholdRow}>
-      <span style={{ fontSize: 14, color: '#374151' }}>{label}</span>
-      <span style={{ fontSize: 14, fontWeight: 700, color: '#3b82f6' }}>{value}</span>
+      <span style={{ fontSize: 14, color: '#4a3728' }}>{label}</span>
+      <span style={{ fontSize: 14, fontWeight: 700, color: '#c1440e' }}>{value}</span>
     </div>
   );
 }
 
 const s = {
   root: { display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 700 },
-  card: { background: '#fff', borderRadius: 12, padding: '20px 24px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 16 },
-  cardTitle: { fontSize: 15, fontWeight: 700, color: '#0f172a' },
-  hint: { fontSize: 13, color: '#64748b', marginTop: -8 },
+  card: { background: '#fff', borderRadius: 12, padding: '20px 24px', border: '1px solid #ede8e0', display: 'flex', flexDirection: 'column', gap: 16 },
+  cardTitle: { fontSize: 15, fontWeight: 700, color: '#2d1f14' },
+  hint: { fontSize: 13, color: '#7d6553', marginTop: -8 },
   venueList: { display: 'flex', flexDirection: 'column', gap: 12 },
-  venueRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #f1f5f9' },
-  venueMark: { width: 36, height: 36, borderRadius: 9, background: '#3b82f6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, flexShrink: 0 },
+  venueRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #f5ede0' },
+  venueMark: { width: 36, height: 36, borderRadius: 9, background: '#c1440e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, flexShrink: 0 },
   venueFields: { flex: 1, display: 'flex', gap: 8 },
-  input: { flex: 1, padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 13, color: '#0f172a' },
-  saveBtn: { padding: '8px 16px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600 },
+  input: { flex: 1, padding: '8px 10px', border: '1px solid #ede8e0', borderRadius: 7, fontSize: 13, color: '#2d1f14' },
+  saveBtn: { padding: '8px 16px', background: '#c1440e', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer' },
   apiList: { display: 'flex', flexDirection: 'column', gap: 14 },
-  apiRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f8fafc' },
-  envTag: { fontFamily: 'monospace', fontSize: 11, background: '#f1f5f9', color: '#475569', padding: '4px 10px', borderRadius: 5 },
+  apiRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f5ede0' },
+  envTag: { fontFamily: 'monospace', fontSize: 11, background: '#fef3ee', color: '#7d6553', padding: '4px 10px', borderRadius: 5 },
   thresholds: { display: 'flex', flexDirection: 'column', gap: 10 },
-  thresholdRow: { display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f8fafc', fontSize: 14 },
+  thresholdRow: { display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f5ede0', fontSize: 14 },
 };
