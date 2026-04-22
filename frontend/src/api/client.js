@@ -14,7 +14,7 @@ export const api = {
   createVenue: (data) => request('/venues', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
   updateVenue: (id, data) => request(`/venues/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
 
-  getDashboardStats: () => request('/dashboard/stats'),
+  getDashboardStats: (params = {}) => request(`/dashboard/stats?${new URLSearchParams(params)}`),
 
   getReports: (params = {}) => request(`/reports?${new URLSearchParams(params)}`),
   submitReport: (formData) => request('/reports', { method: 'POST', body: formData }),
