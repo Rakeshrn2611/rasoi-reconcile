@@ -49,8 +49,7 @@ export default function App() {
       {/* Sidebar */}
       <aside style={s.sidebar}>
         <div style={s.sidebarLogo}>
-          <div style={s.logoMark}>R</div>
-          <span style={s.logoText}>Rasoi</span>
+          <img src="/rasoi-logo.jpg" alt="Rasoi" style={s.logoImg} />
         </div>
 
         <p style={s.navLabel}>Navigate</p>
@@ -125,40 +124,39 @@ const s = {
   root: { display: 'flex', minHeight: '100vh', background: '#faf7f2' },
 
   sidebar: {
-    width: 240, minHeight: '100vh', background: '#1a0f07',
+    width: 240, minHeight: '100vh', background: '#111827',
     display: 'flex', flexDirection: 'column', padding: '0 0 24px',
     position: 'sticky', top: 0, height: '100vh', flexShrink: 0,
   },
-  sidebarLogo: { display: 'flex', alignItems: 'center', gap: 10, padding: '24px 20px 20px' },
-  logoMark: {
-    width: 34, height: 34, borderRadius: 9, background: '#c1440e',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: '#fff', fontWeight: 800, fontSize: 16,
+  sidebarLogo: {
+    background: '#faf7f2', borderBottom: '1px solid #e8dcc8',
+    padding: '14px 20px', display: 'flex', alignItems: 'center',
+    justifyContent: 'center', minHeight: 72,
   },
-  logoText: { color: '#fef3ee', fontSize: 18, fontWeight: 700, letterSpacing: '-0.3px' },
+  logoImg: { height: 44, width: 'auto', objectFit: 'contain', display: 'block' },
 
-  navLabel: { color: '#6b4c35', fontSize: 10, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', padding: '12px 20px 8px' },
+  navLabel: { color: '#4b5563', fontSize: 10, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', padding: '16px 20px 8px' },
   nav: { display: 'flex', flexDirection: 'column', gap: 2, padding: '0 10px' },
   navBtn: {
     display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
     background: 'none', border: 'none', borderRadius: 8,
-    color: '#c9a87c', fontSize: 14, fontWeight: 500, textAlign: 'left',
+    color: '#9ca3af', fontSize: 14, fontWeight: 500, textAlign: 'left',
     transition: 'all 0.15s', position: 'relative', width: '100%',
   },
-  navBtnActive: { background: 'rgba(193,68,14,0.15)', color: '#e07a3e', fontWeight: 600 },
-  navIcon: { color: '#6b4c35', flexShrink: 0 },
-  navIconActive: { color: '#c1440e' },
+  navBtnActive: { background: 'rgba(201,168,124,0.14)', color: '#c9a87c', fontWeight: 600 },
+  navIcon: { color: '#6b7280', flexShrink: 0 },
+  navIconActive: { color: '#c9a87c' },
   navDot: {
-    width: 4, height: 4, borderRadius: '50%', background: '#c1440e',
+    width: 4, height: 4, borderRadius: '50%', background: '#c9a87c',
     position: 'absolute', right: 12,
   },
 
   sidebarFooter: { marginTop: 'auto', padding: '0 12px' },
-  venueFooterLabel: { color: '#6b4c35', fontSize: 10, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', padding: '0 8px 6px' },
+  venueFooterLabel: { color: '#4b5563', fontSize: 10, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', padding: '0 8px 6px' },
   venuePills: { display: 'flex', flexDirection: 'column', gap: 4 },
   venuePill: {
-    padding: '6px 10px', borderRadius: 6, background: 'rgba(193,68,14,0.08)',
-    color: '#9a6644', fontSize: 11, fontWeight: 500, border: '1px solid rgba(193,68,14,0.12)',
+    padding: '6px 10px', borderRadius: 6, background: 'rgba(201,168,124,0.08)',
+    color: '#9ca3af', fontSize: 11, fontWeight: 500, border: '1px solid rgba(201,168,124,0.12)',
   },
 
   main: { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 },
