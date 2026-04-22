@@ -96,6 +96,37 @@ db.exec(`
   );
 `);
 
+// ── Schema migrations (safe – silently ignores duplicate column errors) ───────
+const migrations = [
+  `ALTER TABLE manager_reports ADD COLUMN deposits_used REAL DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN gift_cards_redeemed REAL DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN notes_50 INTEGER DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN notes_20 INTEGER DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN notes_10 INTEGER DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN notes_5 INTEGER DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN coins_200 INTEGER DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN coins_100 INTEGER DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN coins_50 INTEGER DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN coins_20 INTEGER DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN coins_10 INTEGER DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN coins_2 INTEGER DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN coins_1 INTEGER DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN physical_cash REAL DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN petty_cash REAL DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN petty_cash_notes TEXT DEFAULT ''`,
+  `ALTER TABLE manager_reports ADD COLUMN staff_discount REAL DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN staff_discount_notes TEXT DEFAULT ''`,
+  `ALTER TABLE manager_reports ADD COLUMN fnf_discount REAL DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN fnf_discount_notes TEXT DEFAULT ''`,
+  `ALTER TABLE manager_reports ADD COLUMN complimentary REAL DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN complimentary_notes TEXT DEFAULT ''`,
+  `ALTER TABLE manager_reports ADD COLUMN card_tips REAL DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN cash_tips REAL DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN shift_notes TEXT DEFAULT ''`,
+  `ALTER TABLE manager_reports ADD COLUMN grand_total REAL DEFAULT 0`,
+];
+for (const sql of migrations) { try { db.exec(sql); } catch {} }
+
 const venueCount = db.prepare('SELECT COUNT(*) as count FROM venues').get();
 if (venueCount.count === 0) {
   const insert = db.prepare('INSERT INTO venues (id, name, square_location_id) VALUES (?, ?, ?)');
