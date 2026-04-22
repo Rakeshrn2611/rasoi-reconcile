@@ -7,12 +7,19 @@ import History from './pages/History.jsx';
 import Settings from './pages/Settings.jsx';
 
 const NAV = [
-  { id: 'dashboard',   label: 'Dashboard',        icon: IconGrid },
-  { id: 'reconcile',   label: 'Reconcile',         icon: IconBalance },
-  { id: 'reports',     label: 'Manager Reports',   icon: IconDoc },
-  { id: 'history',     label: 'History',           icon: IconClock },
-  { id: 'settings',    label: 'Settings',          icon: IconGear },
+  { id: 'dashboard', label: 'Dashboard',       icon: IconGrid },
+  { id: 'reports',   label: 'Manager Reports', icon: IconDoc },
+  { id: 'history',   label: 'History',         icon: IconClock },
+  { id: 'settings',  label: 'Settings',        icon: IconGear },
 ];
+
+const ALL_PAGES = {
+  dashboard: { label: 'Dashboard' },
+  reconcile:  { label: 'Reconciliation' },
+  reports:    { label: 'Manager Reports' },
+  history:    { label: 'History' },
+  settings:   { label: 'Settings' },
+};
 
 export default function App() {
   const [page, setPage] = useState('dashboard');
@@ -28,7 +35,14 @@ export default function App() {
     setTimeout(() => setToast(null), 3500);
   }
 
-  const pageProps = { venues, showToast, refreshVenues: () => api.getVenues().then(setVenues) };
+  const pageProps = {
+    venues,
+    showToast,
+    navigateTo: setPage,
+    refreshVenues: () => api.getVenues().then(setVenues),
+  };
+
+  const pageTitle = ALL_PAGES[page]?.label ?? 'Dashboard';
 
   return (
     <div style={s.root}>
@@ -56,6 +70,7 @@ export default function App() {
         </nav>
 
         <div style={s.sidebarFooter}>
+          <p style={s.venueFooterLabel}>Venues</p>
           <div style={s.venuePills}>
             {venues.map(v => (
               <div key={v.id} style={s.venuePill}>{v.name}</div>
@@ -67,7 +82,7 @@ export default function App() {
       {/* Main */}
       <div style={s.main}>
         <header style={s.topbar}>
-          <h1 style={s.pageTitle}>{NAV.find(n => n.id === page)?.label}</h1>
+          <h1 style={s.pageTitle}>{pageTitle}</h1>
           <span style={s.topDate}>{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
         </header>
 
@@ -81,7 +96,7 @@ export default function App() {
       </div>
 
       {toast && (
-        <div style={{ ...s.toast, background: toast.type === 'error' ? '#ef4444' : '#22c55e' }}>
+        <div style={{ ...s.toast, background: toast.type === 'error' ? '#c1440e' : '#5a7a30' }}>
           {toast.type === 'success' ? '✓ ' : '✕ '}{toast.msg}
         </div>
       )}
@@ -93,9 +108,6 @@ export default function App() {
 
 function IconGrid() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>;
-}
-function IconBalance() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="3" x2="12" y2="21"/><path d="M5 8l7-5 7 5"/><path d="M3 12l4 6H3"/><path d="M21 12l-4 6h4"/></svg>;
 }
 function IconDoc() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>;
@@ -110,60 +122,61 @@ function IconGear() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = {
-  root: { display: 'flex', minHeight: '100vh', background: '#f1f5f9' },
+  root: { display: 'flex', minHeight: '100vh', background: '#faf7f2' },
 
   sidebar: {
-    width: 240, minHeight: '100vh', background: '#0f172a',
+    width: 240, minHeight: '100vh', background: '#1a0f07',
     display: 'flex', flexDirection: 'column', padding: '0 0 24px',
     position: 'sticky', top: 0, height: '100vh', flexShrink: 0,
   },
   sidebarLogo: { display: 'flex', alignItems: 'center', gap: 10, padding: '24px 20px 20px' },
   logoMark: {
-    width: 34, height: 34, borderRadius: 9, background: '#3b82f6',
+    width: 34, height: 34, borderRadius: 9, background: '#c1440e',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     color: '#fff', fontWeight: 800, fontSize: 16,
   },
-  logoText: { color: '#f8fafc', fontSize: 18, fontWeight: 700, letterSpacing: '-0.3px' },
+  logoText: { color: '#fef3ee', fontSize: 18, fontWeight: 700, letterSpacing: '-0.3px' },
 
-  navLabel: { color: '#475569', fontSize: 10, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', padding: '12px 20px 8px' },
+  navLabel: { color: '#6b4c35', fontSize: 10, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', padding: '12px 20px 8px' },
   nav: { display: 'flex', flexDirection: 'column', gap: 2, padding: '0 10px' },
   navBtn: {
     display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
     background: 'none', border: 'none', borderRadius: 8,
-    color: '#94a3b8', fontSize: 14, fontWeight: 500, textAlign: 'left',
+    color: '#c9a87c', fontSize: 14, fontWeight: 500, textAlign: 'left',
     transition: 'all 0.15s', position: 'relative', width: '100%',
   },
-  navBtnActive: { background: 'rgba(59,130,246,0.12)', color: '#60a5fa', fontWeight: 600 },
-  navIcon: { color: '#475569', flexShrink: 0 },
-  navIconActive: { color: '#3b82f6' },
+  navBtnActive: { background: 'rgba(193,68,14,0.15)', color: '#e07a3e', fontWeight: 600 },
+  navIcon: { color: '#6b4c35', flexShrink: 0 },
+  navIconActive: { color: '#c1440e' },
   navDot: {
-    width: 4, height: 4, borderRadius: '50%', background: '#3b82f6',
+    width: 4, height: 4, borderRadius: '50%', background: '#c1440e',
     position: 'absolute', right: 12,
   },
 
   sidebarFooter: { marginTop: 'auto', padding: '0 12px' },
+  venueFooterLabel: { color: '#6b4c35', fontSize: 10, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', padding: '0 8px 6px' },
   venuePills: { display: 'flex', flexDirection: 'column', gap: 4 },
   venuePill: {
-    padding: '6px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.05)',
-    color: '#64748b', fontSize: 11, fontWeight: 500,
+    padding: '6px 10px', borderRadius: 6, background: 'rgba(193,68,14,0.08)',
+    color: '#9a6644', fontSize: 11, fontWeight: 500, border: '1px solid rgba(193,68,14,0.12)',
   },
 
   main: { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 },
   topbar: {
-    background: '#fff', borderBottom: '1px solid #e2e8f0',
+    background: '#fff9f4', borderBottom: '1px solid #ede8e0',
     padding: '0 28px', height: 60,
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     position: 'sticky', top: 0, zIndex: 10,
   },
-  pageTitle: { fontSize: 17, fontWeight: 700, color: '#0f172a' },
-  topDate: { fontSize: 13, color: '#94a3b8' },
+  pageTitle: { fontSize: 17, fontWeight: 700, color: '#2d1f14' },
+  topDate: { fontSize: 13, color: '#a89078' },
 
   content: { padding: 28, flex: 1 },
 
   toast: {
     position: 'fixed', bottom: 24, right: 24,
     color: '#fff', padding: '12px 20px', borderRadius: 9,
-    fontSize: 14, fontWeight: 500, boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+    fontSize: 14, fontWeight: 500, boxShadow: '0 4px 16px rgba(45,31,20,0.25)',
     zIndex: 100,
   },
 };
