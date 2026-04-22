@@ -124,7 +124,7 @@ const s = {
   root: { display: 'flex', minHeight: '100vh', background: '#faf7f2' },
 
   sidebar: {
-    width: 240, minHeight: '100vh', background: '#111827',
+    width: 240, minHeight: '100vh', background: '#1e140a',
     display: 'flex', flexDirection: 'column', padding: '0 0 24px',
     position: 'sticky', top: 0, height: '100vh', flexShrink: 0,
   },
@@ -133,7 +133,7 @@ const s = {
     padding: '14px 20px', display: 'flex', alignItems: 'center',
     justifyContent: 'center', minHeight: 72,
   },
-  logoImg: { height: 44, width: 'auto', objectFit: 'contain', display: 'block' },
+  logoImg: { height: 44, width: 'auto', objectFit: 'contain', display: 'block', mixBlendMode: 'multiply' },
 
   navLabel: { color: '#4b5563', fontSize: 10, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', padding: '16px 20px 8px' },
   nav: { display: 'flex', flexDirection: 'column', gap: 2, padding: '0 10px' },
