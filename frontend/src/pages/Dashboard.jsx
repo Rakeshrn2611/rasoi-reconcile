@@ -1,66 +1,104 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { api } from '../api/client.js';
 
-// Which card is currently expanded → what data + columns to show
 const CARD_META = {
-  cash_sales:    { label: 'Cash Sales',    color: '#10b981', bg: '#f0fdf4', icon: '💵', valueFn: r => r.cash_sales,  cols: ['Date','Venue','Cash Sales','Reconciled'] },
-  card_sales:    { label: 'Card Sales',    color: '#3b82f6', bg: '#eff6ff', icon: '💳', valueFn: r => r.card_sales,  cols: ['Date','Venue','Card Sales','Reconciled'] },
-  total_sales:   { label: 'Total Sales',   color: '#0ea5e9', bg: '#f0f9ff', icon: '📊', valueFn: r => r.total_sales, cols: ['Date','Venue','Total Sales','Reconciled'] },
-  reconciled:    { label: 'Reconciled',    color: '#8b5cf6', bg: '#f5f3ff', icon: '✓',  valueFn: r => r.total_sales, cols: ['Date','Venue','Total','Variance','Status'] },
-  pending:       { label: 'Pending',       color: '#f59e0b', bg: '#fffbeb', icon: '⏳', valueFn: r => r.total_sales, cols: ['Date','Venue','Total Sales','Days Since'] },
-  cash_variance: { label: 'Cash Variance', color: '#ef4444', bg: '#fef2f2', icon: '⚠',  valueFn: r => r.cash_sales,  cols: ['Date','Venue','Mgr Cash','Sq Cash','Variance'] },
+  cash_sales:    { label: 'Cash Sales',    color: '#5a7a30', bg: '#f0f5e8', icon: '£' },
+  card_sales:    { label: 'Card Sales',    color: '#2563eb', bg: '#eff6ff', icon: '▤' },
+  total_sales:   { label: 'Total Sales',   color: '#c1440e', bg: '#fef3ee', icon: '∑' },
+  reconciled:    { label: 'Reconciled',    color: '#5a7a30', bg: '#f0f5e8', icon: '✓' },
+  pending:       { label: 'Pending',       color: '#c88a2e', bg: '#fdf5e0', icon: '◷' },
+  cash_variance: { label: 'Cash Variance', color: '#c1440e', bg: '#fef3ee', icon: '△' },
 };
 
 const DETAIL_META = {
-  refunds:    { label: 'Refunds',       color: '#ef4444', bg: '#fef2f2', icon: '↩',  cols: ['Date','Venue','Receipt #','Amount','Reason','Status'] },
-  comps:      { label: 'Complimentary', color: '#f59e0b', bg: '#fffbeb', icon: '★',  cols: ['Date','Venue','Receipt #','Item','Variation','Qty','Value'] },
-  discounts:  { label: 'Discounts',     color: '#8b5cf6', bg: '#f5f3ff', icon: '%',  cols: ['Discount Name','Type','Scope','Times Used','Total Amount'] },
-  gift_cards: { label: 'Gift Vouchers', color: '#0ea5e9', bg: '#f0f9ff', icon: '🎁', cols: ['Date','Venue','Receipt #','Card Last 4','Type','Amount'] },
+  refunds:    { label: 'Refunds',       color: '#c1440e', bg: '#fef3ee', icon: '↩' },
+  comps:      { label: 'Complimentary', color: '#c88a2e', bg: '#fdf5e0', icon: '★' },
+  discounts:  { label: 'Discounts',     color: '#7c5c2e', bg: '#fdf5e7', icon: '%' },
+  gift_cards: { label: 'Gift Vouchers', color: '#2563eb', bg: '#eff6ff', icon: '◈' },
 };
 
-export default function Dashboard() {
-  const [stats,     setStats]     = useState(null);
-  const [summary,   setSummary]   = useState(null);
-  const [activeCard, setActiveCard] = useState(null);
-  const [loading,   setLoading]   = useState(true);
+const VENUE_COLORS = ['#c1440e', '#2563eb', '#5a7a30', '#c88a2e'];
 
+export default function Dashboard({ venues, showToast, navigateTo }) {
+  const [selectedVenue, setSelectedVenue] = useState('all');
+  const [stats,          setStats]         = useState(null);
+  const [summary,        setSummary]       = useState(null);
+  const [activeCard,     setActiveCard]    = useState(null);
+  const [dateRange,      setDateRange]     = useState({ from: monthStart(), to: today() });
+  const [loading,        setLoading]       = useState(true);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  // Fetch stats when venue changes
   useEffect(() => {
-    api.getDashboardStats()
+    setActiveCard(null);
+    setSummary(null);
+    setLoading(true);
+    const params = {};
+    if (selectedVenue !== 'all') params.venue_id = selectedVenue;
+    api.getDashboardStats(params)
       .then(setStats)
       .catch(() => setStats(null))
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedVenue]);
 
-  const handleCardClick = useCallback(async (cardId) => {
-    if (activeCard === cardId) { setActiveCard(null); return; }
-    setActiveCard(cardId);
-    if (!summary) {
-      try {
-        const data = await api.getSummary({ from: monthStart(), to: today() });
-        setSummary(data);
-      } catch {}
-    }
-  }, [activeCard, summary]);
+  // Fetch summary when activeCard, dateRange, or selectedVenue changes
+  useEffect(() => {
+    if (!activeCard) { setSummary(null); return; }
+    setSummaryLoading(true);
+    let cancelled = false;
+    const params = { from: dateRange.from, to: dateRange.to };
+    if (selectedVenue !== 'all') params.venue_id = selectedVenue;
+    api.getSummary(params)
+      .then(data => { if (!cancelled) { setSummary(data); setSummaryLoading(false); } })
+      .catch(() => { if (!cancelled) { setSummary(null); setSummaryLoading(false); } });
+    return () => { cancelled = true; };
+  }, [activeCard, dateRange.from, dateRange.to, selectedVenue]);
+
+  function handleCardClick(cardId) {
+    setActiveCard(prev => prev === cardId ? null : cardId);
+  }
 
   const month = new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const m = stats?.monthly ?? {};
   const d = stats?.detail  ?? {};
 
+  const venueLabel = selectedVenue === 'all'
+    ? 'Both Venues'
+    : venues.find(v => v.id === selectedVenue)?.name ?? 'Venue';
+
   if (loading) return <div style={s.loading}>Loading…</div>;
 
   return (
     <div style={s.root}>
-      <p style={s.subtitle}>Overview for {month} — click any card to drill down</p>
+
+      {/* ── Venue switcher ─────────────────────────────────────────────────── */}
+      <div style={s.venueSwitcher}>
+        <button
+          onClick={() => setSelectedVenue('all')}
+          style={{ ...s.venueBtn, ...(selectedVenue === 'all' ? s.venueBtnActive : {}) }}
+        >
+          Both Venues
+        </button>
+        {venues.map(v => (
+          <button
+            key={v.id}
+            onClick={() => setSelectedVenue(v.id)}
+            style={{ ...s.venueBtn, ...(selectedVenue === v.id ? s.venueBtnActive : {}) }}
+          >
+            {v.name}
+          </button>
+        ))}
+      </div>
 
       {/* ── Top 6 stat cards ──────────────────────────────────────────────── */}
       <div style={s.statsGrid}>
-        <StatCard id="cash_sales"    value={`£${f2(stats?.total_cash)}`}    sub="This month"         active={activeCard} onClick={handleCardClick} />
-        <StatCard id="card_sales"    value={`£${f2(stats?.total_card)}`}    sub="This month"         active={activeCard} onClick={handleCardClick} />
-        <StatCard id="total_sales"   value={`£${f2(stats?.total_sales)}`}   sub="All venues"         active={activeCard} onClick={handleCardClick} />
-        <StatCard id="reconciled"    value={stats?.reconciled ?? 0}          sub="Reports matched"    active={activeCard} onClick={handleCardClick} />
-        <StatCard id="pending"       value={stats?.pending ?? 0}             sub="Awaiting reconcile" active={activeCard} onClick={handleCardClick} />
-        <StatCard id="cash_variance" value={`£${f2(stats?.cash_variance)}`} sub="Total this month"   active={activeCard} onClick={handleCardClick}
-          override={(stats?.cash_variance || 0) > 20 ? { color: '#ef4444', bg: '#fef2f2' } : null} />
+        <StatCard id="cash_sales"    value={`£${f2(stats?.total_cash)}`}    sub="This period"         active={activeCard} onClick={handleCardClick} />
+        <StatCard id="card_sales"    value={`£${f2(stats?.total_card)}`}    sub="This period"         active={activeCard} onClick={handleCardClick} />
+        <StatCard id="total_sales"   value={`£${f2(stats?.total_sales)}`}   sub={venueLabel}          active={activeCard} onClick={handleCardClick} />
+        <StatCard id="reconciled"    value={stats?.reconciled ?? 0}          sub="Reports matched"     active={activeCard} onClick={handleCardClick} />
+        <StatCard id="pending"       value={stats?.pending ?? 0}             sub="Awaiting reconcile"  active={activeCard} onClick={handleCardClick} />
+        <StatCard id="cash_variance" value={`£${f2(stats?.cash_variance)}`} sub="Total this period"   active={activeCard} onClick={handleCardClick}
+          override={(stats?.cash_variance || 0) > 20 ? { color: '#c1440e', bg: '#fef3ee' } : { color: '#5a7a30', bg: '#f0f5e8' }} />
       </div>
 
       {/* ── 4 detail cards ────────────────────────────────────────────────── */}
@@ -71,24 +109,53 @@ export default function Dashboard() {
         <DetailCard id="gift_cards" count={m.gift_cards?.count ?? 0} total={m.gift_cards?.total ?? 0} active={activeCard} onClick={handleCardClick} warn={false} />
       </div>
 
-      {/* ── Expanded panel ────────────────────────────────────────────────── */}
+      {/* ── Expanded drilldown panel ───────────────────────────────────────── */}
       {activeCard && (
         <div className="detail-panel" style={s.panel}>
           <div style={s.panelHeader}>
             <div style={s.panelTitleRow}>
-              <span style={{ ...s.panelIcon, background: (CARD_META[activeCard] || DETAIL_META[activeCard])?.color + '20', color: (CARD_META[activeCard] || DETAIL_META[activeCard])?.color }}>
+              <span style={{
+                ...s.panelIcon,
+                background: (CARD_META[activeCard] || DETAIL_META[activeCard])?.bg,
+                color: (CARD_META[activeCard] || DETAIL_META[activeCard])?.color,
+              }}>
                 {(CARD_META[activeCard] || DETAIL_META[activeCard])?.icon}
               </span>
-              <h3 style={s.panelTitle}>{(CARD_META[activeCard] || DETAIL_META[activeCard])?.label} — {month}</h3>
+              <h3 style={s.panelTitle}>{(CARD_META[activeCard] || DETAIL_META[activeCard])?.label}</h3>
+              <span style={s.venueBadge}>{venueLabel}</span>
             </div>
-            <button onClick={() => setActiveCard(null)} style={s.closeBtn}>✕ Close</button>
+            <div style={s.panelRight}>
+              <span style={s.dateLabel}>From:</span>
+              <input
+                type="date" value={dateRange.from}
+                onChange={e => setDateRange(p => ({ ...p, from: e.target.value }))}
+                style={s.dateInput}
+              />
+              <span style={s.dateLabel}>to</span>
+              <input
+                type="date" value={dateRange.to}
+                onChange={e => setDateRange(p => ({ ...p, to: e.target.value }))}
+                style={s.dateInput}
+              />
+              <button onClick={() => setActiveCard(null)} style={s.closeBtn}>✕ Close</button>
+            </div>
           </div>
 
           <div style={{ padding: '20px 24px' }}>
-            <PanelContent activeCard={activeCard} summary={summary} detail={d} />
+            {summaryLoading
+              ? <p style={{ color: '#a89078', fontSize: 13, padding: 16 }}>Loading…</p>
+              : <PanelContent activeCard={activeCard} summary={summary} detail={d} />
+            }
           </div>
         </div>
       )}
+
+      {/* ── Reconcile widget ──────────────────────────────────────────────── */}
+      <ReconcileWidget
+        reconciled={stats?.reconciled ?? 0}
+        pending={stats?.pending ?? 0}
+        navigateTo={navigateTo}
+      />
 
       {/* ── Recent reports ────────────────────────────────────────────────── */}
       <div style={s.section}>
@@ -101,16 +168,24 @@ export default function Dashboard() {
               <tr>{['Date','Venue','Cash','Card','Total','Status'].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
             </thead>
             <tbody>
-              {stats.recent.map(r => (
-                <tr key={r.id} style={s.tr}>
-                  <td style={s.td}>{fDate(r.date)}</td>
-                  <td style={s.td}>{r.venue_name}</td>
-                  <td style={s.td}>£{f2(r.cash_sales)}</td>
-                  <td style={s.td}>£{f2(r.card_sales)}</td>
-                  <td style={{ ...s.td, fontWeight: 700 }}>£{f2(r.total_sales)}</td>
-                  <td style={s.td}><StatusPill ok={!!r.has_square} label={r.has_square ? 'Reconciled' : 'Pending'} /></td>
-                </tr>
-              ))}
+              {stats.recent.map((r, i) => {
+                const vIdx = venues.findIndex(v => v.id === r.venue_id);
+                const vc = VENUE_COLORS[vIdx >= 0 ? vIdx % VENUE_COLORS.length : 0];
+                return (
+                  <tr key={r.id} style={{ background: i % 2 === 0 ? '#fff' : '#fefcf9' }}>
+                    <td style={s.td}>{fDate(r.date)}</td>
+                    <td style={s.td}>
+                      <span style={{ ...s.venuePillSmall, background: vc + '18', color: vc, borderColor: vc + '30' }}>
+                        {r.venue_name}
+                      </span>
+                    </td>
+                    <td style={s.td}>£{f2(r.cash_sales)}</td>
+                    <td style={s.td}>£{f2(r.card_sales)}</td>
+                    <td style={{ ...s.td, fontWeight: 700, color: '#2d1f14' }}>£{f2(r.total_sales)}</td>
+                    <td style={s.td}><StatusPill ok={!!r.has_square} label={r.has_square ? 'Reconciled' : 'Pending'} /></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -119,26 +194,68 @@ export default function Dashboard() {
   );
 }
 
+// ── ReconcileWidget ───────────────────────────────────────────────────────────
+
+function ReconcileWidget({ reconciled, pending, navigateTo }) {
+  const total = reconciled + pending;
+  const pct   = total > 0 ? Math.round((reconciled / total) * 100) : 100;
+  const allDone = pending === 0;
+
+  return (
+    <div style={{
+      ...s.widget,
+      background: allDone ? '#f0f5e8' : '#fdf5e0',
+      borderColor: allDone ? '#b5d08a' : '#e8c97a',
+    }}>
+      <div style={s.widgetIcon}>
+        <span style={{ fontSize: 22, color: allDone ? '#5a7a30' : '#c88a2e' }}>⚖</span>
+      </div>
+      <div style={s.widgetTitle}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#2d1f14' }}>Reconciliation Status</span>
+        <span style={{ fontSize: 12, color: '#7d6553', marginTop: 2 }}>
+          {reconciled} report{reconciled !== 1 ? 's' : ''} reconciled · {pending} pending this month
+        </span>
+      </div>
+      <div style={s.widgetStats}>
+        <div style={s.widgetStat}>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#5a7a30' }}>{reconciled}</span>
+          <span style={{ fontSize: 10, color: '#7d6553', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Reconciled</span>
+        </div>
+        <div style={s.widgetStat}>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#c88a2e' }}>{pending}</span>
+          <span style={{ fontSize: 10, color: '#7d6553', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pending</span>
+        </div>
+        <div style={s.widgetStat}>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#c1440e' }}>{pct}%</span>
+          <span style={{ fontSize: 10, color: '#7d6553', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Complete</span>
+        </div>
+      </div>
+      <button onClick={() => navigateTo('reconcile')} style={s.widgetBtn}>
+        Open Reconciliation →
+      </button>
+    </div>
+  );
+}
+
 // ── Panel content ─────────────────────────────────────────────────────────────
 
 function PanelContent({ activeCard, summary, detail }) {
   if (!summary && CARD_META[activeCard]) {
-    return <p style={{ color: '#94a3b8', fontSize: 13, padding: 16 }}>Loading…</p>;
+    return <p style={{ color: '#a89078', fontSize: 13, padding: 16 }}>No data — try adjusting the date range.</p>;
   }
 
-  // Stat card panels — show report rows
   if (activeCard === 'cash_sales' || activeCard === 'card_sales' || activeCard === 'total_sales') {
-    const field = activeCard; // cash_sales | card_sales | total_sales
+    const field = activeCard;
     return (
       <DataTable
-        columns={CARD_META[activeCard].cols}
+        columns={['Date', 'Venue', CARD_META[activeCard].label, 'Reconciled']}
         rows={(summary ?? []).map(r => [
           fDate(r.date),
           r.venue_name,
           <Amt value={r[field]} color={CARD_META[activeCard].color} />,
           <Tick ok={r.sq_total != null} />,
         ])}
-        empty="No reports found for this month."
+        empty="No reports found for this period."
       />
     );
   }
@@ -147,19 +264,20 @@ function PanelContent({ activeCard, summary, detail }) {
     const rows = (summary ?? []).filter(r => r.sq_total != null);
     return (
       <DataTable
-        columns={CARD_META.reconciled.cols}
+        columns={['Date', 'Venue', 'Mgr Total', 'Sq Total', 'Variance', 'Status']}
         rows={rows.map(r => {
           const variance = Math.abs((r.total_sales || 0) - (r.sq_total || 0));
           return [
             fDate(r.date), r.venue_name,
-            <Amt value={r.total_sales} color="#8b5cf6" />,
+            <Amt value={r.total_sales} color="#5a7a30" />,
+            <Amt value={r.sq_total} color="#2563eb" />,
             variance < 0.01
-              ? <span style={{ color: '#10b981', fontWeight: 700 }}>—</span>
-              : <span style={{ color: '#ef4444', fontWeight: 700 }}>£{f2(variance)}</span>,
+              ? <span style={{ color: '#5a7a30', fontWeight: 700 }}>—</span>
+              : <span style={{ color: '#c1440e', fontWeight: 700 }}>£{f2(variance)}</span>,
             <StatusPill ok={variance < 5} label={variance < 5 ? 'OK' : 'Warn'} />,
           ];
         })}
-        empty="No reconciled reports this month."
+        empty="No reconciled reports this period."
       />
     );
   }
@@ -168,13 +286,13 @@ function PanelContent({ activeCard, summary, detail }) {
     const rows = (summary ?? []).filter(r => r.sq_total == null);
     return (
       <DataTable
-        columns={CARD_META.pending.cols}
+        columns={['Date', 'Venue', 'Total', 'Days Pending']}
         rows={rows.map(r => {
           const days = Math.floor((Date.now() - new Date(r.date + 'T00:00:00')) / 86400000);
           return [
             fDate(r.date), r.venue_name,
-            <Amt value={r.total_sales} color="#f59e0b" />,
-            <span style={{ color: days > 2 ? '#ef4444' : '#94a3b8', fontWeight: days > 2 ? 700 : 400 }}>
+            <Amt value={r.total_sales} color="#c88a2e" />,
+            <span style={{ color: days > 2 ? '#c1440e' : '#a89078', fontWeight: days > 2 ? 700 : 400 }}>
               {days === 0 ? 'Today' : `${days}d ago`}
             </span>,
           ];
@@ -186,38 +304,51 @@ function PanelContent({ activeCard, summary, detail }) {
 
   if (activeCard === 'cash_variance') {
     const rows = (summary ?? []).filter(r => r.sq_total != null);
+    const balanced = rows.filter(r => Math.abs((r.cash_sales || 0) - (r.sq_cash || 0)) < 5).length;
+    const withVariance = rows.length - balanced;
     return (
-      <DataTable
-        columns={CARD_META.cash_variance.cols}
-        rows={rows.map(r => {
-          const variance = (r.cash_sales || 0) - (r.sq_cash || 0);
-          return [
-            fDate(r.date), r.venue_name,
-            `£${f2(r.cash_sales)}`,
-            `£${f2(r.sq_cash)}`,
-            <span style={{ color: Math.abs(variance) > 5 ? '#ef4444' : '#10b981', fontWeight: 700 }}>
-              {variance >= 0 ? '+' : '−'}£{f2(Math.abs(variance))}
-            </span>,
-          ];
-        })}
-        empty="No cash variance data this month."
-      />
+      <>
+        {rows.length > 0 && (
+          <div style={s.varianceBanner}>
+            <span style={{ fontSize: 13, color: '#5a7a30', fontWeight: 600 }}>✓ {balanced} balanced</span>
+            <span style={{ fontSize: 13, color: withVariance > 0 ? '#c1440e' : '#a89078', fontWeight: 600 }}>
+              {withVariance > 0 ? `⚠ ${withVariance} with variance` : 'No variances'}
+            </span>
+          </div>
+        )}
+        <DataTable
+          columns={['Date', 'Venue', 'Expected Cash (Square)', 'Actual Cash (Manager)', 'Difference', 'Status']}
+          rows={rows.map(r => {
+            const diff = (r.cash_sales || 0) - (r.sq_cash || 0);
+            const isOk = Math.abs(diff) < 5;
+            return [
+              fDate(r.date), r.venue_name,
+              `£${f2(r.sq_cash)}`,
+              `£${f2(r.cash_sales)}`,
+              <span style={{ color: isOk ? '#5a7a30' : '#c1440e', fontWeight: 700 }}>
+                {diff >= 0 ? '+' : '−'}£{f2(Math.abs(diff))}
+              </span>,
+              <StatusPill ok={isOk} label={isOk ? 'Balanced' : 'Variance'} />,
+            ];
+          })}
+          empty="No cash variance data this period."
+        />
+      </>
     );
   }
 
-  // Detail card panels
   if (activeCard === 'refunds') {
     return (
       <DataTable
-        columns={DETAIL_META.refunds.cols}
+        columns={['Date', 'Venue', 'Receipt #', 'Amount', 'Reason', 'Status']}
         rows={(detail.recentRefunds ?? []).map(r => [
           fDate(r.date), r.venue_name,
           <code style={s.code}>{r.receipt_number}</code>,
-          <Amt value={r.amount} color="#ef4444" />,
+          <Amt value={r.amount} color="#c1440e" />,
           r.reason || '—',
           <StatusPill ok={r.status === 'COMPLETED'} label={r.status} />,
         ])}
-        empty="No refunds this month."
+        empty="No refunds this period."
       />
     );
   }
@@ -225,16 +356,16 @@ function PanelContent({ activeCard, summary, detail }) {
   if (activeCard === 'comps') {
     return (
       <DataTable
-        columns={DETAIL_META.comps.cols}
+        columns={['Date', 'Venue', 'Receipt #', 'Item', 'Variation', 'Qty', 'Value']}
         rows={(detail.recentComps ?? []).map(c => [
           fDate(c.date), c.venue_name,
           <code style={s.code}>{c.receipt_number}</code>,
           c.item_name,
           c.variation_name || '—',
           c.quantity,
-          <Amt value={c.amount} color="#f59e0b" />,
+          <Amt value={c.amount} color="#c88a2e" />,
         ])}
-        empty="No complimentary items this month."
+        empty="No complimentary items this period."
       />
     );
   }
@@ -248,25 +379,25 @@ function PanelContent({ activeCard, summary, detail }) {
               <div key={i} style={s.discCard}>
                 <span style={s.discName}>{dt.discount_name}</span>
                 <div style={s.discTags}>
-                  <span style={s.tagBlue}>{dt.discount_type}</span>
-                  <span style={s.tagGray}>{dt.scope}</span>
+                  <span style={s.tagAccent}>{dt.discount_type}</span>
+                  <span style={s.tagWarm}>{dt.scope}</span>
                 </div>
-                <span style={{ ...s.discAmt, color: '#8b5cf6' }}>£{f2(dt.total_amount)}</span>
+                <span style={{ ...s.discAmt, color: '#7c5c2e' }}>£{f2(dt.total_amount)}</span>
                 <span style={s.discTimes}>{dt.occurrences}× applied</span>
               </div>
             ))}
           </div>
         )}
         <DataTable
-          columns={DETAIL_META.discounts.cols}
+          columns={['Discount Name', 'Type', 'Scope', 'Times Used', 'Total Amount']}
           rows={(detail.discByType ?? []).map(dt => [
             dt.discount_name,
-            <span style={s.tagBlue}>{dt.discount_type}</span>,
-            <span style={s.tagGray}>{dt.scope}</span>,
+            <span style={s.tagAccent}>{dt.discount_type}</span>,
+            <span style={s.tagWarm}>{dt.scope}</span>,
             dt.occurrences,
-            <Amt value={dt.total_amount} color="#8b5cf6" />,
+            <Amt value={dt.total_amount} color="#7c5c2e" />,
           ])}
-          empty="No discounts this month."
+          empty="No discounts this period."
         />
       </>
     );
@@ -275,15 +406,15 @@ function PanelContent({ activeCard, summary, detail }) {
   if (activeCard === 'gift_cards') {
     return (
       <DataTable
-        columns={DETAIL_META.gift_cards.cols}
+        columns={['Date', 'Venue', 'Receipt #', 'Card Last 4', 'Type', 'Amount']}
         rows={(detail.recentGiftCards ?? []).map(g => [
           fDate(g.date), g.venue_name,
           <code style={s.code}>{g.receipt_number}</code>,
           <code style={s.code}>···· {g.gift_card_last4}</code>,
-          <span style={s.tagBlue}>{g.activity_type}</span>,
-          <Amt value={g.amount} color="#0ea5e9" />,
+          <span style={s.tagAccent}>{g.activity_type}</span>,
+          <Amt value={g.amount} color="#2563eb" />,
         ])}
-        empty="No gift voucher activity this month."
+        empty="No gift voucher activity this period."
       />
     );
   }
@@ -291,7 +422,7 @@ function PanelContent({ activeCard, summary, detail }) {
   return null;
 }
 
-// ── Reusable sub-components ───────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function StatCard({ id, value, sub, active, onClick, override }) {
   const meta = CARD_META[id];
@@ -302,7 +433,7 @@ function StatCard({ id, value, sub, active, onClick, override }) {
     <button
       className={`dash-card${isActive ? ' active' : ''}`}
       onClick={() => onClick(id)}
-      style={{ ...s.statCard, background: isActive ? bg : '#fff', borderColor: isActive ? color : '#e2e8f0', textAlign: 'left' }}
+      style={{ ...s.statCard, background: isActive ? bg : '#fff', borderColor: isActive ? color : '#ede8e0', textAlign: 'left' }}
     >
       <div style={s.cardTop}>
         <span style={{ ...s.cardIconWrap, background: bg, color }}>{meta.icon}</span>
@@ -322,7 +453,7 @@ function DetailCard({ id, count, total, active, onClick, warn }) {
     <button
       className={`dash-card${isActive ? ' active' : ''}`}
       onClick={() => onClick(id)}
-      style={{ ...s.detailCard, background: isActive ? meta.bg : '#fff', borderColor: isActive ? meta.color : '#e2e8f0', textAlign: 'left' }}
+      style={{ ...s.detailCard, background: isActive ? meta.bg : '#fff', borderColor: isActive ? meta.color : '#ede8e0', textAlign: 'left' }}
     >
       <div style={s.detailTop}>
         <span style={{ ...s.detailIconWrap, background: meta.bg, color: meta.color }}>{meta.icon}</span>
@@ -331,13 +462,13 @@ function DetailCard({ id, count, total, active, onClick, warn }) {
       </div>
       <div style={{ ...s.detailAmt, color: meta.color }}>{count > 0 ? `£${f2(total)}` : '—'}</div>
       <div style={s.cardLabel}>{meta.label}</div>
-      <div style={s.cardSub}>{count} {count === 1 ? 'item' : 'items'} this month</div>
+      <div style={s.cardSub}>{count} {count === 1 ? 'item' : 'items'} this period</div>
     </button>
   );
 }
 
 function DataTable({ columns, rows, empty }) {
-  if (!rows.length) return <p style={{ color: '#94a3b8', fontSize: 13, padding: '20px 0' }}>{empty}</p>;
+  if (!rows.length) return <p style={{ color: '#a89078', fontSize: 13, padding: '20px 0' }}>{empty}</p>;
   return (
     <div style={{ overflowX: 'auto', marginTop: 4 }}>
       <table style={s.dtTable}>
@@ -346,7 +477,7 @@ function DataTable({ columns, rows, empty }) {
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+            <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#fefcf9' }}>
               {row.map((cell, j) => <td key={j} style={s.dtTd}>{cell}</td>)}
             </tr>
           ))}
@@ -358,7 +489,7 @@ function DataTable({ columns, rows, empty }) {
 
 function Tick({ ok }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', background: ok ? '#dcfce7' : '#fef2f2', color: ok ? '#16a34a' : '#dc2626', fontWeight: 700, fontSize: 13 }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', background: ok ? '#f0f5e8' : '#fef3ee', color: ok ? '#5a7a30' : '#c1440e', fontWeight: 700, fontSize: 13 }}>
       {ok ? '✓' : '✕'}
     </span>
   );
@@ -370,7 +501,12 @@ function Amt({ value, color }) {
 
 function StatusPill({ ok, label }) {
   return (
-    <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: ok ? '#dcfce7' : '#fef9c3', color: ok ? '#166534' : '#854d0e', whiteSpace: 'nowrap' }}>
+    <span style={{
+      fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20,
+      background: ok ? '#f0f5e8' : '#fdf5e0',
+      color: ok ? '#4a6622' : '#7c5200',
+      whiteSpace: 'nowrap',
+    }}>
       {label}
     </span>
   );
@@ -384,56 +520,80 @@ const monthStart = () => { const d = new Date(); return `${d.getFullYear()}-${St
 
 // ── styles ────────────────────────────────────────────────────────────────────
 const s = {
-  root:      { display: 'flex', flexDirection: 'column', gap: 20 },
-  loading:   { color: '#94a3b8', padding: 40, textAlign: 'center' },
-  subtitle:  { color: '#64748b', fontSize: 13 },
+  root:    { display: 'flex', flexDirection: 'column', gap: 20 },
+  loading: { color: '#a89078', padding: 40, textAlign: 'center' },
+
+  // Venue switcher
+  venueSwitcher: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+  venueBtn: {
+    padding: '7px 16px', borderRadius: 20, border: '1.5px solid #ede8e0',
+    background: '#fff', color: '#7d6553', fontSize: 13, fontWeight: 500,
+    cursor: 'pointer', transition: 'all 0.15s',
+  },
+  venueBtnActive: {
+    background: '#c1440e', borderColor: '#c1440e', color: '#fff', fontWeight: 600,
+  },
 
   // Stat cards
   statsGrid:  { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 },
   statCard:   { borderRadius: 14, padding: '18px 20px', border: '1.5px solid', display: 'flex', flexDirection: 'column', gap: 4, background: '#fff' },
   cardTop:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   cardIconWrap: { width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700 },
-  cardChevron:{ fontSize: 9, color: '#cbd5e1' },
+  cardChevron:{ fontSize: 9, color: '#d4c4b0' },
   cardValue:  { fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px', lineHeight: 1 },
-  cardLabel:  { fontSize: 13, fontWeight: 600, color: '#374151', marginTop: 2 },
-  cardSub:    { fontSize: 11, color: '#9ca3af' },
+  cardLabel:  { fontSize: 13, fontWeight: 600, color: '#4a3728', marginTop: 2 },
+  cardSub:    { fontSize: 11, color: '#a89078' },
 
   // Detail cards
   detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 },
   detailCard: { borderRadius: 14, padding: '18px 20px', border: '1.5px solid', display: 'flex', flexDirection: 'column', gap: 4 },
   detailTop:  { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 },
   detailIconWrap: { width: 34, height: 34, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700 },
-  warnDot:    { width: 8, height: 8, borderRadius: '50%', background: '#ef4444', marginLeft: 'auto' },
+  warnDot:    { width: 8, height: 8, borderRadius: '50%', background: '#c1440e', marginLeft: 'auto' },
   detailAmt:  { fontSize: 22, fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1 },
 
   // Expanded panel
-  panel:      { background: '#fff', borderRadius: 14, border: '1.5px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden' },
-  panelHeader:{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid #f1f5f9', background: '#fafafa' },
+  panel:      { background: '#fff', borderRadius: 14, border: '1.5px solid #ede8e0', boxShadow: '0 4px 20px rgba(45,31,20,0.08)', overflow: 'hidden' },
+  panelHeader:{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid #f5ede0', background: '#fefcf9', flexWrap: 'wrap', gap: 10 },
   panelTitleRow: { display: 'flex', alignItems: 'center', gap: 10 },
   panelIcon:  { width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700 },
-  panelTitle: { fontSize: 15, fontWeight: 700, color: '#0f172a' },
-  closeBtn:   { padding: '6px 14px', border: '1px solid #e2e8f0', background: '#fff', borderRadius: 7, fontSize: 13, color: '#64748b', cursor: 'pointer' },
-  panelBody:  { padding: '20px 24px' },
+  panelTitle: { fontSize: 15, fontWeight: 700, color: '#2d1f14' },
+  venueBadge: { fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: '#fef3ee', color: '#c1440e', border: '1px solid #f5c8b0' },
+  panelRight: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  dateLabel:  { fontSize: 12, color: '#7d6553', fontWeight: 500 },
+  dateInput:  { border: '1px solid #ede8e0', borderRadius: 6, padding: '5px 8px', fontSize: 12, color: '#2d1f14', background: '#fff' },
+  closeBtn:   { padding: '6px 14px', border: '1px solid #ede8e0', background: '#fff', borderRadius: 7, fontSize: 13, color: '#7d6553', cursor: 'pointer' },
 
-  discGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 10, padding: '16px 24px', borderBottom: '1px solid #f1f5f9' },
-  discCard: { border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4, background: '#fafafa' },
-  discName: { fontSize: 13, fontWeight: 700, color: '#0f172a' },
+  varianceBanner: { display: 'flex', gap: 24, padding: '10px 0 16px', borderBottom: '1px solid #f5ede0', marginBottom: 8 },
+
+  discGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 10, paddingBottom: 16, borderBottom: '1px solid #f5ede0', marginBottom: 12 },
+  discCard: { border: '1px solid #ede8e0', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4, background: '#fefcf9' },
+  discName: { fontSize: 13, fontWeight: 700, color: '#2d1f14' },
   discTags: { display: 'flex', gap: 5, flexWrap: 'wrap' },
   discAmt:  { fontSize: 18, fontWeight: 800, marginTop: 4 },
-  discTimes:{ fontSize: 11, color: '#94a3b8' },
-  tagBlue:  { fontSize: 10, padding: '2px 7px', borderRadius: 4, background: '#e0e7ff', color: '#3730a3', fontWeight: 600 },
-  tagGray:  { fontSize: 10, padding: '2px 7px', borderRadius: 4, background: '#f1f5f9', color: '#64748b', fontWeight: 600 },
+  discTimes:{ fontSize: 11, color: '#a89078' },
+  tagAccent:{ fontSize: 10, padding: '2px 7px', borderRadius: 4, background: '#fef3ee', color: '#9a2e05', fontWeight: 600 },
+  tagWarm:  { fontSize: 10, padding: '2px 7px', borderRadius: 4, background: '#f5ede0', color: '#7d6553', fontWeight: 600 },
 
   dtTable:  { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  dtTh:     { padding: '10px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #f1f5f9', whiteSpace: 'nowrap' },
-  dtTd:     { padding: '11px 24px', borderBottom: '1px solid #f8fafc', color: '#374151', verticalAlign: 'middle' },
-  code:     { fontFamily: 'monospace', fontSize: 12, background: '#f1f5f9', padding: '2px 7px', borderRadius: 4, color: '#374151' },
+  dtTh:     { padding: '10px 16px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#a89078', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #f5ede0', whiteSpace: 'nowrap' },
+  dtTd:     { padding: '11px 16px', borderBottom: '1px solid #f5ede0', color: '#4a3728', verticalAlign: 'middle' },
+  code:     { fontFamily: 'monospace', fontSize: 12, background: '#f5ede0', padding: '2px 7px', borderRadius: 4, color: '#4a3728' },
 
-  section:      { background: '#fff', borderRadius: 14, border: '1.5px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' },
-  sectionTitle: { fontSize: 15, fontWeight: 700, padding: '16px 24px', borderBottom: '1px solid #f1f5f9' },
+  // Reconcile widget
+  widget:     { display: 'flex', alignItems: 'center', gap: 20, padding: '18px 24px', borderRadius: 14, border: '1.5px solid', flexWrap: 'wrap' },
+  widgetIcon: { width: 48, height: 48, borderRadius: 12, background: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  widgetTitle:{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 160 },
+  widgetStats:{ display: 'flex', gap: 24 },
+  widgetStat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  widgetBtn:  { padding: '9px 18px', background: '#c1440e', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
+
+  // Recent reports section
+  section:      { background: '#fff', borderRadius: 14, border: '1.5px solid #ede8e0', overflow: 'hidden' },
+  sectionTitle: { fontSize: 15, fontWeight: 700, color: '#2d1f14', padding: '16px 24px', borderBottom: '1px solid #f5ede0' },
   table:        { width: '100%', borderCollapse: 'collapse' },
-  th:           { padding: '9px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #f1f5f9' },
-  tr:           { borderBottom: '1px solid #f8fafc' },
-  td:           { padding: '12px 24px', fontSize: 13, color: '#374151' },
-  empty:        { padding: '32px 24px', color: '#94a3b8', fontSize: 14, textAlign: 'center' },
+  th:           { padding: '9px 24px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#a89078', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #f5ede0' },
+  td:           { padding: '12px 24px', fontSize: 13, color: '#4a3728' },
+  empty:        { padding: '32px 24px', color: '#a89078', fontSize: 14, textAlign: 'center' },
+  venuePillSmall: { fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 20, border: '1px solid', whiteSpace: 'nowrap' },
 };
