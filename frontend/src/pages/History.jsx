@@ -62,14 +62,14 @@ export default function History({ venues }) {
                 const status = !r ? 'pending' : r.status;
                 const variance = r ? Math.abs(r.totalVar) : null;
                 return (
-                  <tr key={i} style={s.tr}>
+                  <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#fefcf9' }}>
                     <td style={s.td}>{formatDate(row.date)}</td>
                     <td style={s.td}>{row.venue_name}</td>
                     <td style={s.td}>£{(row.cash_sales||0).toFixed(2)}</td>
                     <td style={s.td}>£{(row.card_sales||0).toFixed(2)}</td>
-                    <td style={{ ...s.td, fontWeight: 600 }}>£{(row.total_sales||0).toFixed(2)}</td>
+                    <td style={{ ...s.td, fontWeight: 600, color: '#2d1f14' }}>£{(row.total_sales||0).toFixed(2)}</td>
                     <td style={s.td}>{row.sq_total != null ? `£${row.sq_total.toFixed(2)}` : '—'}</td>
-                    <td style={{ ...s.td, color: variance != null && variance > 5 ? '#ef4444' : '#374151' }}>
+                    <td style={{ ...s.td, color: variance != null && variance > 5 ? '#c1440e' : '#4a3728' }}>
                       {variance != null ? `£${variance.toFixed(2)}` : '—'}
                     </td>
                     <td style={s.td}><StatusBadge status={status} /></td>
@@ -86,15 +86,19 @@ export default function History({ venues }) {
 
 function SummCard({ label, value, bold, warn }) {
   return (
-    <div style={{ ...s.summCard, background: warn ? '#fef9c3' : '#fff' }}>
-      <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>{label}</span>
-      <span style={{ fontSize: 20, fontWeight: bold ? 800 : 700, color: warn ? '#92400e' : '#0f172a' }}>{value}</span>
+    <div style={{ ...s.summCard, background: warn ? '#fdf5e0' : '#fff' }}>
+      <span style={{ fontSize: 11, color: '#7d6553', fontWeight: 600 }}>{label}</span>
+      <span style={{ fontSize: 20, fontWeight: bold ? 800 : 700, color: warn ? '#7c3d0e' : bold ? '#c1440e' : '#2d1f14' }}>{value}</span>
     </div>
   );
 }
 
 function StatusBadge({ status }) {
-  const map = { ok: ['#dcfce7','#166534','Reconciled'], warn: ['#fef9c3','#854d0e','Warning'], pending: ['#f1f5f9','#64748b','Pending'] };
+  const map = {
+    ok:      ['#f0f5e8', '#4a6622', 'Reconciled'],
+    warn:    ['#fdf5e0', '#7c5200', 'Warning'],
+    pending: ['#f5ede0', '#a89078', 'Pending'],
+  };
   const [bg, color, label] = map[status] || map.pending;
   return <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: bg, color }}>{label}</span>;
 }
@@ -109,15 +113,14 @@ function monthStart() {
 const s = {
   root: { display: 'flex', flexDirection: 'column', gap: 16 },
   filters: { display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' },
-  select: { padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, background: '#fff' },
-  input: { padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14 },
-  sep: { color: '#94a3b8', fontSize: 13 },
+  select: { padding: '8px 12px', border: '1px solid #ede8e0', borderRadius: 8, fontSize: 14, background: '#fff', color: '#2d1f14' },
+  input: { padding: '8px 10px', border: '1px solid #ede8e0', borderRadius: 8, fontSize: 14, color: '#2d1f14' },
+  sep: { color: '#a89078', fontSize: 13 },
   summaryCards: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 },
-  summCard: { borderRadius: 10, padding: '14px 16px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 4 },
-  card: { background: '#fff', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0', overflow: 'hidden' },
+  summCard: { borderRadius: 10, padding: '14px 16px', border: '1px solid #ede8e0', display: 'flex', flexDirection: 'column', gap: 4, background: '#fff' },
+  card: { background: '#fff', borderRadius: 12, border: '1px solid #ede8e0', overflow: 'hidden' },
   table: { width: '100%', borderCollapse: 'collapse' },
-  th: { padding: '11px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #f1f5f9' },
-  tr: { borderBottom: '1px solid #f8fafc' },
-  td: { padding: '11px 14px', fontSize: 13, color: '#374151' },
-  empty: { padding: 40, color: '#94a3b8', textAlign: 'center', fontSize: 14 },
+  th: { padding: '11px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#a89078', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #f5ede0' },
+  td: { padding: '11px 14px', fontSize: 13, color: '#4a3728' },
+  empty: { padding: 40, color: '#a89078', textAlign: 'center', fontSize: 14 },
 };
