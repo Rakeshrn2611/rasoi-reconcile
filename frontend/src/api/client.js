@@ -18,6 +18,7 @@ export const api = {
 
   getReports: (params = {}) => request(`/reports?${new URLSearchParams(params)}`),
   submitReport: (formData) => request('/reports', { method: 'POST', body: formData }),
+  submitEODReport: (data) => request('/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
   deleteReport: (id) => request(`/reports/${id}`, { method: 'DELETE' }),
 
   fetchSquare: (venue_id, date) => request('/square/fetch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ venue_id, date }) }),
