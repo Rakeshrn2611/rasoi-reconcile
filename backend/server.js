@@ -193,7 +193,12 @@ app.get('/api/dashboard/stats', (req, res) => {
 
 app.get('/api/reports', (req, res) => {
   const { venue_id, date, from, to } = req.query;
-  let q = `SELECT mr.*, v.name as venue_name FROM manager_reports mr JOIN venues v ON v.id=mr.venue_id WHERE 1=1`;
+  let q = `SELECT mr.*, v.name as venue_name,
+    CASE WHEN sd.id IS NOT NULL THEN 1 ELSE 0 END as has_square,
+    COALESCE(sd.locked, 0) as locked
+    FROM manager_reports mr JOIN venues v ON v.id=mr.venue_id
+    LEFT JOIN square_data sd ON sd.venue_id=mr.venue_id AND sd.date=mr.date
+    WHERE 1=1`;
   const p = [];
   if (venue_id) { q += ' AND mr.venue_id=?'; p.push(venue_id); }
   if (date)     { q += ' AND mr.date=?';      p.push(date); }
@@ -241,8 +246,9 @@ app.post('/api/reports', async (req, res) => {
          staff_discount, staff_discount_notes,
          fnf_discount, fnf_discount_notes,
          complimentary, complimentary_notes,
-         card_tips, cash_tips)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         card_tips, cash_tips,
+         manager_refunds, manager_refund_notes)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `).run(
       b.venue_id, b.date, cash_sales, card_sales, total_sales, grand_total,
       t(b.notes), t(b.shift_notes),
@@ -253,10 +259,79 @@ app.post('/api/reports', async (req, res) => {
       n(b.staff_discount), t(b.staff_discount_notes),
       n(b.fnf_discount), t(b.fnf_discount_notes),
       n(b.complimentary), t(b.complimentary_notes),
-      n(b.card_tips), n(b.cash_tips)
+      n(b.card_tips), n(b.cash_tips),
+      n(b.manager_refunds), t(b.manager_refund_notes)
     );
     return res.json({ id: result.lastInsertRowid, venue_id: b.venue_id, date: b.date,
       cash_sales, card_sales, total_sales, grand_total, physical_cash, petty_cash });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/reports/:id', async (req, res) => {
+  try {
+    const b = req.body;
+    const existing = db.prepare(`
+      SELECT mr.id, COALESCE(sd.locked, 0) as locked
+      FROM manager_reports mr
+      LEFT JOIN square_data sd ON sd.venue_id=mr.venue_id AND sd.date=mr.date
+      WHERE mr.id=?`).get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Report not found' });
+    if (existing.locked) return res.status(400).json({ error: 'Cannot edit a locked report' });
+
+    const n = v => parseFloat(v) || 0;
+    const t = v => (v || '').toString().trim();
+
+    const notes_50  = n(b.notes_50);  const notes_20  = n(b.notes_20);
+    const notes_10  = n(b.notes_10);  const notes_5   = n(b.notes_5);
+    const coins_200 = n(b.coins_200); const coins_100 = n(b.coins_100);
+    const coins_50  = n(b.coins_50);  const coins_20  = n(b.coins_20);
+    const coins_10  = n(b.coins_10);  const coins_2   = n(b.coins_2);
+    const coins_1   = n(b.coins_1);
+
+    const physical_cash =
+      notes_50 * 50 + notes_20 * 20 + notes_10 * 10 + notes_5 * 5 +
+      coins_200 * 2 + coins_100 * 1 + coins_50 * 0.5 + coins_20 * 0.2 +
+      coins_10 * 0.1 + coins_2 * 0.02 + coins_1 * 0.01;
+
+    const cash_sales          = n(b.cash_sales);
+    const card_sales          = n(b.card_sales);
+    const deposits_used       = n(b.deposits_used);
+    const gift_cards_redeemed = n(b.gift_cards_redeemed);
+    const petty_cash          = n(b.petty_cash);
+    const grand_total = cash_sales + card_sales + deposits_used + gift_cards_redeemed + petty_cash;
+    const total_sales = cash_sales + card_sales;
+
+    db.prepare(`
+      UPDATE manager_reports SET
+        venue_id=?, date=?, cash_sales=?, card_sales=?, total_sales=?, grand_total=?,
+        notes=?, shift_notes=?, deposits_used=?, gift_cards_redeemed=?,
+        notes_50=?, notes_20=?, notes_10=?, notes_5=?,
+        coins_200=?, coins_100=?, coins_50=?, coins_20=?, coins_10=?, coins_2=?, coins_1=?,
+        physical_cash=?, petty_cash=?, petty_cash_notes=?,
+        staff_discount=?, staff_discount_notes=?,
+        fnf_discount=?, fnf_discount_notes=?,
+        complimentary=?, complimentary_notes=?,
+        card_tips=?, cash_tips=?,
+        manager_refunds=?, manager_refund_notes=?
+      WHERE id=?
+    `).run(
+      b.venue_id || b.venue_id, b.date, cash_sales, card_sales, total_sales, grand_total,
+      t(b.notes), t(b.shift_notes),
+      deposits_used, gift_cards_redeemed,
+      notes_50, notes_20, notes_10, notes_5,
+      coins_200, coins_100, coins_50, coins_20, coins_10, coins_2, coins_1,
+      physical_cash, petty_cash, t(b.petty_cash_notes),
+      n(b.staff_discount), t(b.staff_discount_notes),
+      n(b.fnf_discount), t(b.fnf_discount_notes),
+      n(b.complimentary), t(b.complimentary_notes),
+      n(b.card_tips), n(b.cash_tips),
+      n(b.manager_refunds), t(b.manager_refund_notes),
+      req.params.id
+    );
+    res.json({ ok: true, grand_total, physical_cash });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -327,19 +402,26 @@ app.get('/api/reconcile', (req, res) => {
 });
 
 app.get('/api/reconcile/summary', (req, res) => {
-  const { venue_id, from, to } = req.query;
+  const { venue_id, from, to, approved_only } = req.query;
+  const joinType = approved_only === '1'
+    ? 'INNER JOIN square_data sd ON sd.venue_id=mr.venue_id AND sd.date=mr.date AND sd.locked=1'
+    : 'LEFT JOIN square_data sd ON sd.venue_id=mr.venue_id AND sd.date=mr.date';
   let q = `
-    SELECT mr.date, mr.venue_id, v.name as venue_name,
+    SELECT mr.id, mr.date, mr.venue_id, v.name as venue_name,
            mr.cash_sales, mr.card_sales, mr.total_sales, mr.grand_total,
            mr.physical_cash, mr.petty_cash, mr.notes,
            mr.deposits_used, mr.gift_cards_redeemed, mr.card_tips, mr.cash_tips,
            mr.staff_discount, mr.fnf_discount, mr.complimentary,
            mr.petty_cash_notes, mr.shift_notes,
+           mr.notes_50, mr.notes_20, mr.notes_10, mr.notes_5,
+           mr.coins_200, mr.coins_100, mr.coins_50, mr.coins_20, mr.coins_10, mr.coins_2, mr.coins_1,
+           mr.manager_refunds, mr.manager_refund_notes,
            sd.cash as sq_cash, sd.card as sq_card, sd.total as sq_total,
-           sd.refunds, sd.discounts, sd.comps
+           sd.refunds, sd.discounts, sd.comps, sd.recon_notes,
+           COALESCE(sd.locked, 0) as sq_locked
     FROM manager_reports mr
     JOIN venues v ON v.id=mr.venue_id
-    LEFT JOIN square_data sd ON sd.venue_id=mr.venue_id AND sd.date=mr.date
+    ${joinType}
     WHERE 1=1`;
   const p = [];
   if (venue_id) { q += ' AND mr.venue_id=?'; p.push(venue_id); }
@@ -360,8 +442,9 @@ app.get('/api/reconcile/summary', (req, res) => {
 // ── Detail list endpoints ─────────────────────────────────────────────────────
 
 app.get('/api/refunds', (req, res) => {
-  const { venue_id, from, to } = req.query;
-  let q = `SELECT rd.*, v.name as venue_name FROM square_refund_details rd JOIN venues v ON v.id=rd.venue_id WHERE 1=1`;
+  const { venue_id, from, to, approved_only } = req.query;
+  const lockJoin = approved_only === '1' ? ' INNER JOIN square_data sd ON sd.venue_id=rd.venue_id AND sd.date=rd.date AND sd.locked=1' : '';
+  let q = `SELECT rd.*, v.name as venue_name FROM square_refund_details rd JOIN venues v ON v.id=rd.venue_id${lockJoin} WHERE 1=1`;
   const p = [];
   if (venue_id) { q += ' AND rd.venue_id=?'; p.push(venue_id); }
   if (from)     { q += ' AND rd.date>=?';    p.push(from); }
@@ -371,8 +454,9 @@ app.get('/api/refunds', (req, res) => {
 });
 
 app.get('/api/comps', (req, res) => {
-  const { venue_id, from, to } = req.query;
-  let q = `SELECT cd.*, v.name as venue_name FROM square_comp_details cd JOIN venues v ON v.id=cd.venue_id WHERE 1=1`;
+  const { venue_id, from, to, approved_only } = req.query;
+  const lockJoin = approved_only === '1' ? ' INNER JOIN square_data sd ON sd.venue_id=cd.venue_id AND sd.date=cd.date AND sd.locked=1' : '';
+  let q = `SELECT cd.*, v.name as venue_name FROM square_comp_details cd JOIN venues v ON v.id=cd.venue_id${lockJoin} WHERE 1=1`;
   const p = [];
   if (venue_id) { q += ' AND cd.venue_id=?'; p.push(venue_id); }
   if (from)     { q += ' AND cd.date>=?';    p.push(from); }
@@ -382,8 +466,9 @@ app.get('/api/comps', (req, res) => {
 });
 
 app.get('/api/discounts', (req, res) => {
-  const { venue_id, from, to } = req.query;
-  let q = `SELECT dd.*, v.name as venue_name FROM square_discount_details dd JOIN venues v ON v.id=dd.venue_id WHERE 1=1`;
+  const { venue_id, from, to, approved_only } = req.query;
+  const lockJoin = approved_only === '1' ? ' INNER JOIN square_data sd ON sd.venue_id=dd.venue_id AND sd.date=dd.date AND sd.locked=1' : '';
+  let q = `SELECT dd.*, v.name as venue_name FROM square_discount_details dd JOIN venues v ON v.id=dd.venue_id${lockJoin} WHERE 1=1`;
   const p = [];
   if (venue_id) { q += ' AND dd.venue_id=?'; p.push(venue_id); }
   if (from)     { q += ' AND dd.date>=?';    p.push(from); }
@@ -393,8 +478,9 @@ app.get('/api/discounts', (req, res) => {
 });
 
 app.get('/api/gift-cards', (req, res) => {
-  const { venue_id, from, to } = req.query;
-  let q = `SELECT gd.*, v.name as venue_name FROM square_gift_card_details gd JOIN venues v ON v.id=gd.venue_id WHERE 1=1`;
+  const { venue_id, from, to, approved_only } = req.query;
+  const lockJoin = approved_only === '1' ? ' INNER JOIN square_data sd ON sd.venue_id=gd.venue_id AND sd.date=gd.date AND sd.locked=1' : '';
+  let q = `SELECT gd.*, v.name as venue_name FROM square_gift_card_details gd JOIN venues v ON v.id=gd.venue_id${lockJoin} WHERE 1=1`;
   const p = [];
   if (venue_id) { q += ' AND gd.venue_id=?'; p.push(venue_id); }
   if (from)     { q += ' AND gd.date>=?';    p.push(from); }
@@ -407,6 +493,22 @@ app.patch('/api/square/notes', (req, res) => {
   const { venue_id, date, recon_notes } = req.body;
   if (!venue_id || !date) return res.status(400).json({ error: 'venue_id and date required' });
   db.prepare('UPDATE square_data SET recon_notes=? WHERE venue_id=? AND date=?').run(recon_notes || '', venue_id, date);
+  res.json({ ok: true });
+});
+
+app.patch('/api/square/lock', (req, res) => {
+  const { venue_id, date } = req.body;
+  if (!venue_id || !date) return res.status(400).json({ error: 'venue_id and date required' });
+  const sq = db.prepare('SELECT id FROM square_data WHERE venue_id=? AND date=?').get(venue_id, date);
+  if (!sq) return res.status(400).json({ error: 'No Square data — fetch and reconcile before locking' });
+  db.prepare('UPDATE square_data SET locked=1 WHERE venue_id=? AND date=?').run(venue_id, date);
+  res.json({ ok: true });
+});
+
+app.patch('/api/square/unlock', (req, res) => {
+  const { venue_id, date } = req.body;
+  if (!venue_id || !date) return res.status(400).json({ error: 'venue_id and date required' });
+  db.prepare('UPDATE square_data SET locked=0 WHERE venue_id=? AND date=?').run(venue_id, date);
   res.json({ ok: true });
 });
 
