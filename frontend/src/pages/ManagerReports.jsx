@@ -11,6 +11,7 @@ const EMPTY = {
   staff_discount: '', staff_discount_notes: '',
   fnf_discount: '', fnf_discount_notes: '',
   complimentary: '', complimentary_notes: '',
+  manager_refunds: '', manager_refund_notes: '',
   card_tips: '', cash_tips: '',
   shift_notes: '',
 };
@@ -32,7 +33,8 @@ export default function ManagerReports({ venues, showToast }) {
   const [reports, setReports] = useState([]);
   const [filter, setFilter]   = useState({ venue_id: '', from: monthStart(), to: today() });
   const [loading, setLoading] = useState(false);
-  const [open, setOpen]       = useState({ sales: true, cash: true, petty: true, discounts: false, tips: false, notes: false });
+  const [open, setOpen]       = useState({ sales: true, cash: true, petty: true, discounts: false, refunds: false, tips: false, notes: false });
+  const [editId, setEditId]   = useState(null);
 
   useEffect(() => {
     if (venues.length === 1 && !form.venue_id) setForm(f => ({ ...f, venue_id: venues[0].id }));
@@ -98,13 +100,48 @@ export default function ManagerReports({ venues, showToast }) {
     return Object.keys(e).length === 0;
   }
 
+  function handleEdit(report) {
+    const str = v => (v == null || v === 0) ? '' : String(v);
+    setForm({
+      date: report.date, venue_id: report.venue_id,
+      cash_sales: str(report.cash_sales), card_sales: str(report.card_sales),
+      deposits_used: str(report.deposits_used), gift_cards_redeemed: str(report.gift_cards_redeemed),
+      notes_50: str(report.notes_50), notes_20: str(report.notes_20),
+      notes_10: str(report.notes_10), notes_5: str(report.notes_5),
+      coins_200: str(report.coins_200), coins_100: str(report.coins_100),
+      coins_50: str(report.coins_50), coins_20: str(report.coins_20),
+      coins_10: str(report.coins_10), coins_2: str(report.coins_2),
+      coins_1: str(report.coins_1),
+      petty_cash: str(report.petty_cash), petty_cash_notes: report.petty_cash_notes || '',
+      staff_discount: str(report.staff_discount), staff_discount_notes: report.staff_discount_notes || '',
+      fnf_discount: str(report.fnf_discount), fnf_discount_notes: report.fnf_discount_notes || '',
+      complimentary: str(report.complimentary), complimentary_notes: report.complimentary_notes || '',
+      manager_refunds: str(report.manager_refunds), manager_refund_notes: report.manager_refund_notes || '',
+      card_tips: str(report.card_tips), cash_tips: str(report.cash_tips),
+      shift_notes: report.shift_notes || '',
+    });
+    setEditId(report.id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function handleCancelEdit() {
+    setForm({ ...EMPTY, venue_id: form.venue_id });
+    setEditId(null);
+  }
+
   async function handleSubmit(ev) {
     ev.preventDefault();
     if (!validate()) return;
     setSaving(true);
     try {
-      await api.submitEODReport(form);
-      showToast('End of day report saved');
+      if (editId) {
+        await api.updateReport(editId, form);
+        showToast('Report updated');
+        setEditId(null);
+      } else {
+        await api.submitEODReport(form);
+        showToast('End of day report saved');
+      }
       setForm({ ...EMPTY, venue_id: form.venue_id });
       loadReports();
     } catch (err) { showToast(err.message, 'error'); }
@@ -129,8 +166,18 @@ export default function ManagerReports({ venues, showToast }) {
       <div style={s.formCol}>
         <form onSubmit={handleSubmit} style={s.formCard}>
           <div style={s.formHeader}>
-            <h2 style={s.formTitle}>End of Day Report</h2>
-            <p style={s.formSub}>Fill in all sections then submit</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <h2 style={s.formTitle}>{editId ? 'Edit Report' : 'End of Day Report'}</h2>
+                <p style={s.formSub}>{editId ? 'Editing existing report — submit to save changes' : 'Fill in all sections then submit'}</p>
+              </div>
+              {editId && (
+                <button type="button" onClick={handleCancelEdit}
+                  style={{ padding: '5px 12px', background: '#fef3ee', border: '1px solid #f0c0a0', borderRadius: 7, fontSize: 12, color: '#c1440e', cursor: 'pointer', fontWeight: 600 }}>
+                  Cancel Edit
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Basic info */}
@@ -260,6 +307,19 @@ export default function ManagerReports({ venues, showToast }) {
             </div>
           </Section>
 
+          {/* ── Refunds ── */}
+          <Section label="Refunds (manager-tracked)" icon="↩" open={open.refunds} onToggle={() => toggle('refunds')} isMobile={isMobile}>
+            <p style={s.hint}>Record any cash or manually processed refunds not captured by Square.</p>
+            <div style={{ ...s.discRow, gridTemplateColumns: isMobile ? '1fr' : '1fr 1.5fr' }}>
+              <NumField label="Refund Amount" value={form.manager_refunds} onChange={v => set('manager_refunds', v)} prefix="£" isMobile={isMobile} />
+              <label style={s.fieldLabel}>
+                Notes
+                <input value={form.manager_refund_notes} onChange={e => set('manager_refund_notes', e.target.value)}
+                  placeholder="Reason / customer name" style={{ ...s.input, fontSize: isMobile ? 16 : 14 }} />
+              </label>
+            </div>
+          </Section>
+
           {/* ── Tips ── */}
           <Section label="Tips" icon="★" open={open.tips} onToggle={() => toggle('tips')} isMobile={isMobile}>
             <div style={{ ...s.grid2, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
@@ -306,7 +366,7 @@ export default function ManagerReports({ venues, showToast }) {
 
           <button type="submit" disabled={saving}
             style={{ ...s.submitBtn, fontSize: isMobile ? 16 : 15, padding: isMobile ? '16px 0' : '14px 0' }}>
-            {saving ? 'Saving…' : 'Submit End of Day Report'}
+            {saving ? 'Saving…' : editId ? 'Update Report' : 'Submit End of Day Report'}
           </button>
         </form>
       </div>
@@ -335,11 +395,16 @@ export default function ManagerReports({ venues, showToast }) {
                   <div key={r.id} style={{ padding: '12px 16px', borderBottom: '1px solid #f5ede0' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                       <span style={{ fontWeight: 700, fontSize: 14, color: '#2d1f14' }}>{fDate(r.date)}</span>
-                      <RecPill hasSquare={!!r.has_square} />
+                      <RecPill hasSquare={!!r.has_square} locked={!!r.locked} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                       <VenuePill name={r.venue_name} />
-                      <button onClick={() => handleDelete(r.id)} style={s.delBtn} title="Delete">✕</button>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {!r.has_square && !r.locked && (
+                          <button onClick={() => handleEdit(r)} style={{ ...s.delBtn, color: '#2563eb' }} title="Edit">✎</button>
+                        )}
+                        <button onClick={() => handleDelete(r.id)} style={s.delBtn} title="Delete">✕</button>
+                      </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, marginTop: 6 }}>
                       <div style={{ fontSize: 11, color: '#7d6553' }}>Cash<br/><span style={{ fontSize: 13, fontWeight: 700, color: '#2d1f14' }}>£{f2(r.cash_sales)}</span></div>
@@ -362,9 +427,14 @@ export default function ManagerReports({ venues, showToast }) {
                       <td style={s.td}>£{f2(r.cash_sales)}</td>
                       <td style={s.td}>£{f2(r.card_sales)}</td>
                       <td style={{ ...s.td, fontWeight: 700, color: '#c1440e' }}>£{f2(r.grand_total || r.total_sales)}</td>
-                      <td style={s.td}><RecPill hasSquare={!!r.has_square} /></td>
+                      <td style={s.td}><RecPill hasSquare={!!r.has_square} locked={!!r.locked} /></td>
                       <td style={s.td}>
-                        <button onClick={() => handleDelete(r.id)} style={s.delBtn} title="Delete">✕</button>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {!r.has_square && !r.locked && (
+                            <button onClick={() => handleEdit(r)} style={{ ...s.delBtn, color: '#2563eb', fontSize: 14 }} title="Edit">✎</button>
+                          )}
+                          <button onClick={() => handleDelete(r.id)} style={s.delBtn} title="Delete">✕</button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -454,7 +524,8 @@ function VenuePill({ name }) {
   return <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: color + '18', color }}>{name}</span>;
 }
 
-function RecPill({ hasSquare }) {
+function RecPill({ hasSquare, locked }) {
+  if (locked) return <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: '#eff6ff', color: '#1e40af' }}>Locked</span>;
   return <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
     background: hasSquare ? '#f0f5e8' : '#fdf5e0', color: hasSquare ? '#5a7a30' : '#c88a2e' }}>
     {hasSquare ? 'Reconciled' : 'Pending'}
