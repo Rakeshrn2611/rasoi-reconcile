@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from '../api/client.js';
 
 const DETAIL_TABS = ['refunds', 'comps', 'discounts', 'gift_cards'];
@@ -12,6 +12,8 @@ export default function Reconcile({ venues, showToast }) {
   const [result, setResult]       = useState(null);
   const [detailTab, setDetailTab] = useState('refunds');
   const [error, setError]         = useState('');
+  const [reconNotes, setReconNotes] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
 
   const selectedVenue = venues.find(v => v.id === venueId);
   const r   = result?.reconciliation;
@@ -33,9 +35,37 @@ export default function Reconcile({ venues, showToast }) {
     if (!venueId) return setError('Select a venue.');
     setLoading(true); setError('');
     try {
-      setResult(await api.reconcile(venueId, date));
+      const data = await api.reconcile(venueId, date);
+      setResult(data);
+      setReconNotes(data?.square?.recon_notes || '');
     } catch (err) { setError(err.message); setResult(null); }
     setLoading(false);
+  }
+
+  async function handleSaveNotes() {
+    setSavingNotes(true);
+    try {
+      await api.saveReconNotes(venueId, date, reconNotes);
+      showToast('Notes saved');
+    } catch (err) { showToast(err.message, 'error'); }
+    setSavingNotes(false);
+  }
+
+  function handleExportCSV() {
+    if (!result) return;
+    const r = result.reconciliation;
+    const rows = [
+      ['Category', 'Square', 'Manager', 'Variance'],
+      ['Cash', f2(result.square.cash), f2(r.countedCash), f2(r.cashVar)],
+      ['Card', f2(result.square.card), f2(result.report.card_sales), f2(r.cardVar)],
+      ['Total', f2(result.square.total), f2(result.report.grand_total || result.report.total_sales), f2(r.totalVar)],
+    ];
+    const csv = rows.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `reconciliation-${venueId}-${date}.csv`;
+    a.click();
   }
 
   return (
@@ -190,6 +220,26 @@ export default function Reconcile({ venues, showToast }) {
                 <ExtraChip label="Discounts"  value={result.square.discounts}  warn={result.square.discounts > 200} />
                 <ExtraChip label="Comps"      value={result.square.comps}      warn={result.square.comps > 50} />
                 <ExtraChip label="Gift Cards" value={result.square.gift_cards} />
+              </div>
+
+              {/* Notes */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#7d6553' }}>Reconciliation Notes</label>
+                <textarea
+                  value={reconNotes}
+                  onChange={e => setReconNotes(e.target.value)}
+                  placeholder="Add any notes about this reconciliation…"
+                  rows={3}
+                  style={{ ...s.input, resize: 'vertical', fontSize: 13 }}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={handleSaveNotes} disabled={savingNotes} style={s.btnSec}>
+                    {savingNotes ? 'Saving…' : 'Save Notes'}
+                  </button>
+                  <button onClick={handleExportCSV} style={s.btnSec}>
+                    Export CSV
+                  </button>
+                </div>
               </div>
             </>
           )}
