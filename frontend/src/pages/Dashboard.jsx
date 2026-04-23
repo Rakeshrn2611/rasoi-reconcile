@@ -28,7 +28,6 @@ export default function Dashboard({ venues, showToast, navigateTo }) {
   const [loading,        setLoading]       = useState(true);
   const [summaryLoading, setSummaryLoading] = useState(false);
 
-  // Fetch stats when venue changes
   useEffect(() => {
     setActiveCard(null);
     setSummary(null);
@@ -41,7 +40,6 @@ export default function Dashboard({ venues, showToast, navigateTo }) {
       .finally(() => setLoading(false));
   }, [selectedVenue]);
 
-  // Fetch summary when activeCard, dateRange, or selectedVenue changes
   useEffect(() => {
     if (!activeCard) { setSummary(null); return; }
     setSummaryLoading(true);
@@ -58,7 +56,6 @@ export default function Dashboard({ venues, showToast, navigateTo }) {
     setActiveCard(prev => prev === cardId ? null : cardId);
   }
 
-  const month = new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const m = stats?.monthly ?? {};
   const d = stats?.detail  ?? {};
 
@@ -73,33 +70,31 @@ export default function Dashboard({ venues, showToast, navigateTo }) {
 
       {/* ── Venue switcher ─────────────────────────────────────────────────── */}
       <div style={s.venueSwitcher}>
-        <button
-          onClick={() => setSelectedVenue('all')}
-          style={{ ...s.venueBtn, ...(selectedVenue === 'all' ? s.venueBtnActive : {}) }}
-        >
+        <button onClick={() => setSelectedVenue('all')}
+          style={{ ...s.venueBtn, ...(selectedVenue === 'all' ? s.venueBtnActive : {}) }}>
           Both Venues
         </button>
         {venues.map(v => (
-          <button
-            key={v.id}
-            onClick={() => setSelectedVenue(v.id)}
-            style={{ ...s.venueBtn, ...(selectedVenue === v.id ? s.venueBtnActive : {}) }}
-          >
+          <button key={v.id} onClick={() => setSelectedVenue(v.id)}
+            style={{ ...s.venueBtn, ...(selectedVenue === v.id ? s.venueBtnActive : {}) }}>
             {v.name}
           </button>
         ))}
       </div>
 
-      {/* ── Top 6 stat cards ──────────────────────────────────────────────── */}
+      {/* ── Top 6 KPI stat cards ──────────────────────────────────────────── */}
       <div style={s.statsGrid}>
-        <StatCard id="cash_sales"    value={`£${f2(stats?.total_cash)}`}    sub="This period"         active={activeCard} onClick={handleCardClick} />
-        <StatCard id="card_sales"    value={`£${f2(stats?.total_card)}`}    sub="This period"         active={activeCard} onClick={handleCardClick} />
-        <StatCard id="total_sales"   value={`£${f2(stats?.total_sales)}`}   sub={venueLabel}          active={activeCard} onClick={handleCardClick} />
-        <StatCard id="reconciled"    value={stats?.reconciled ?? 0}          sub="Reports matched"     active={activeCard} onClick={handleCardClick} />
-        <StatCard id="pending"       value={stats?.pending ?? 0}             sub="Awaiting reconcile"  active={activeCard} onClick={handleCardClick} />
-        <StatCard id="cash_variance" value={`£${f2(stats?.cash_variance)}`} sub="Total this period"   active={activeCard} onClick={handleCardClick}
+        <StatCard id="cash_sales"    value={`£${f2(stats?.total_cash)}`}    sub="This period"        active={activeCard} onClick={handleCardClick} />
+        <StatCard id="card_sales"    value={`£${f2(stats?.total_card)}`}    sub="This period"        active={activeCard} onClick={handleCardClick} />
+        <StatCard id="total_sales"   value={`£${f2(stats?.total_sales)}`}   sub={venueLabel}         active={activeCard} onClick={handleCardClick} />
+        <StatCard id="reconciled"    value={stats?.reconciled ?? 0}          sub="Reports matched"    active={activeCard} onClick={handleCardClick} />
+        <StatCard id="pending"       value={stats?.pending ?? 0}             sub="Awaiting reconcile" active={activeCard} onClick={handleCardClick} />
+        <StatCard id="cash_variance" value={`£${f2(stats?.cash_variance)}`} sub="Total this period"  active={activeCard} onClick={handleCardClick}
           override={(stats?.cash_variance || 0) > 20 ? { color: '#c1440e', bg: '#fef3ee' } : { color: '#5a7a30', bg: '#f0f5e8' }} />
       </div>
+
+      {/* ── Sales breakdown chart ─────────────────────────────────────────── */}
+      <SalesBreakdown stats={stats} />
 
       {/* ── 4 detail cards ────────────────────────────────────────────────── */}
       <div style={s.detailGrid}>
@@ -126,21 +121,14 @@ export default function Dashboard({ venues, showToast, navigateTo }) {
             </div>
             <div style={s.panelRight}>
               <span style={s.dateLabel}>From:</span>
-              <input
-                type="date" value={dateRange.from}
-                onChange={e => setDateRange(p => ({ ...p, from: e.target.value }))}
-                style={s.dateInput}
-              />
+              <input type="date" value={dateRange.from}
+                onChange={e => setDateRange(p => ({ ...p, from: e.target.value }))} style={s.dateInput} />
               <span style={s.dateLabel}>to</span>
-              <input
-                type="date" value={dateRange.to}
-                onChange={e => setDateRange(p => ({ ...p, to: e.target.value }))}
-                style={s.dateInput}
-              />
+              <input type="date" value={dateRange.to}
+                onChange={e => setDateRange(p => ({ ...p, to: e.target.value }))} style={s.dateInput} />
               <button onClick={() => setActiveCard(null)} style={s.closeBtn}>✕ Close</button>
             </div>
           </div>
-
           <div style={{ padding: '20px 24px' }}>
             {summaryLoading
               ? <p style={{ color: '#a89078', fontSize: 13, padding: 16 }}>Loading…</p>
@@ -151,11 +139,7 @@ export default function Dashboard({ venues, showToast, navigateTo }) {
       )}
 
       {/* ── Reconcile widget ──────────────────────────────────────────────── */}
-      <ReconcileWidget
-        reconciled={stats?.reconciled ?? 0}
-        pending={stats?.pending ?? 0}
-        navigateTo={navigateTo}
-      />
+      <ReconcileWidget reconciled={stats?.reconciled ?? 0} pending={stats?.pending ?? 0} navigateTo={navigateTo} />
 
       {/* ── Recent reports ────────────────────────────────────────────────── */}
       <div style={s.section}>
@@ -191,6 +175,111 @@ export default function Dashboard({ venues, showToast, navigateTo }) {
         )}
       </div>
     </div>
+  );
+}
+
+// ── Sales Breakdown (Donut Chart) ─────────────────────────────────────────────
+
+function SalesBreakdown({ stats }) {
+  const cash     = stats?.total_cash     || 0;
+  const card     = stats?.total_card     || 0;
+  const deposits = stats?.total_deposits || 0;
+  const gifts    = stats?.total_gifts    || 0;
+  const petty    = stats?.total_petty    || 0;
+
+  const slices = [
+    { label: 'Cash Sales',    value: cash,     color: '#5a7a30' },
+    { label: 'Card Sales',    value: card,     color: '#2563eb' },
+    { label: 'Deposits',      value: deposits, color: '#c88a2e' },
+    { label: 'Gift Vouchers', value: gifts,    color: '#7c3d8c' },
+    { label: 'Petty Cash',    value: petty,    color: '#a89078' },
+  ].filter(sl => sl.value > 0);
+
+  const grand = slices.reduce((s, x) => s + x.value, 0);
+
+  return (
+    <div style={s.breakdownCard}>
+      <div style={s.breakdownHeader}>
+        <span style={s.breakdownTitle}>Sales Breakdown</span>
+        <span style={{ fontSize: 12, color: '#a89078' }}>Click KPI cards above to drill down</span>
+      </div>
+      <div style={s.breakdownBody}>
+        <div style={s.chartWrap}>
+          <DonutChart slices={slices} grand={grand} size={180} />
+        </div>
+        <div style={s.legendList}>
+          {slices.length === 0 ? (
+            <p style={{ color: '#a89078', fontSize: 13, margin: 0 }}>No data for this period.</p>
+          ) : slices.map((sl, i) => (
+            <div key={i} style={s.legendItem}>
+              <span style={{ width: 11, height: 11, borderRadius: 3, background: sl.color, flexShrink: 0 }} />
+              <span style={{ flex: 1, fontSize: 13, color: '#4a3728' }}>{sl.label}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#2d1f14' }}>£{f2(sl.value)}</span>
+              <span style={{ fontSize: 11, color: '#a89078', minWidth: 38, textAlign: 'right' }}>
+                {grand > 0 ? Math.round((sl.value / grand) * 100) : 0}%
+              </span>
+            </div>
+          ))}
+        </div>
+        {slices.length > 0 && (
+          <div style={s.grandBox}>
+            <span style={{ fontSize: 11, color: '#a89078', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Grand Total</span>
+            <span style={{ fontSize: 24, fontWeight: 800, color: '#c1440e', letterSpacing: '-0.5px' }}>£{f2(grand)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DonutChart({ slices, grand, size }) {
+  const cx = size / 2, cy = size / 2;
+  const R = size * 0.38, r = size * 0.23;
+
+  const total = slices.reduce((s, x) => s + (x.value || 0), 0);
+  if (total <= 0) {
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={cx} cy={cy} r={R} fill="none" stroke="#f0ebe4" strokeWidth={R - r} />
+        <text x={cx} y={cy + 5} textAnchor="middle" fontSize={11} fill="#a89078">No data</text>
+      </svg>
+    );
+  }
+
+  let start = -Math.PI / 2;
+  const segments = [];
+  for (const sl of slices) {
+    const val = sl.value || 0;
+    if (val <= 0) continue;
+    const pct = val / total;
+    const end = start + pct * 2 * Math.PI;
+    let d;
+    if (pct > 0.9999) {
+      d = `M ${cx} ${cy - R} A ${R} ${R} 0 1 1 ${cx - 0.001} ${cy - R} Z
+           M ${cx} ${cy - r} A ${r} ${r} 0 1 0 ${cx - 0.001} ${cy - r} Z`;
+    } else {
+      const x1 = cx + R * Math.cos(start), y1 = cy + R * Math.sin(start);
+      const x2 = cx + R * Math.cos(end),   y2 = cy + R * Math.sin(end);
+      const ix1 = cx + r * Math.cos(end),   iy1 = cy + r * Math.sin(end);
+      const ix2 = cx + r * Math.cos(start), iy2 = cy + r * Math.sin(start);
+      const lg = pct > 0.5 ? 1 : 0;
+      d = `M${x1},${y1} A${R},${R},0,${lg},1,${x2},${y2} L${ix1},${iy1} A${r},${r},0,${lg},0,${ix2},${iy2} Z`;
+    }
+    segments.push({ d, color: sl.color });
+    start = end;
+  }
+
+  const dispK = grand >= 1000;
+  const centre = dispK ? `£${(grand / 1000).toFixed(1)}k` : `£${f2(grand)}`;
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      {segments.map((seg, i) => (
+        <path key={i} d={seg.d} fill={seg.color} stroke="#fff" strokeWidth={2} />
+      ))}
+      <text x={cx} y={cy - 8}  textAnchor="middle" fontSize={10} fill="#a89078">Total</text>
+      <text x={cx} y={cy + 10} textAnchor="middle" fontSize={15} fontWeight="800" fill="#2d1f14">{centre}</text>
+    </svg>
   );
 }
 
@@ -513,9 +602,9 @@ function StatusPill({ ok, label }) {
 }
 
 // ── utils ─────────────────────────────────────────────────────────────────────
-const f2    = n => (Number(n) || 0).toFixed(2);
-const fDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-const today     = () => new Date().toISOString().slice(0, 10);
+const f2       = n => (Number(n) || 0).toFixed(2);
+const fDate    = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const today    = () => new Date().toISOString().slice(0, 10);
 const monthStart = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; };
 
 // ── styles ────────────────────────────────────────────────────────────────────
@@ -523,20 +612,16 @@ const s = {
   root:    { display: 'flex', flexDirection: 'column', gap: 20 },
   loading: { color: '#a89078', padding: 40, textAlign: 'center' },
 
-  // Venue switcher
   venueSwitcher: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   venueBtn: {
     padding: '7px 16px', borderRadius: 20, border: '1.5px solid #ede8e0',
-    background: '#fff', color: '#7d6553', fontSize: 13, fontWeight: 500,
-    cursor: 'pointer', transition: 'all 0.15s',
+    background: '#fff', color: '#7d6553', fontSize: 13, fontWeight: 500, cursor: 'pointer',
   },
-  venueBtnActive: {
-    background: '#c1440e', borderColor: '#c1440e', color: '#fff', fontWeight: 600,
-  },
+  venueBtnActive: { background: '#c1440e', borderColor: '#c1440e', color: '#fff', fontWeight: 600 },
 
-  // Stat cards
+  // KPI stat cards
   statsGrid:  { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 },
-  statCard:   { borderRadius: 14, padding: '18px 20px', border: '1.5px solid', display: 'flex', flexDirection: 'column', gap: 4, background: '#fff' },
+  statCard:   { borderRadius: 14, padding: '18px 20px', border: '1.5px solid', display: 'flex', flexDirection: 'column', gap: 4, background: '#fff', cursor: 'pointer' },
   cardTop:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   cardIconWrap: { width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700 },
   cardChevron:{ fontSize: 9, color: '#d4c4b0' },
@@ -544,9 +629,30 @@ const s = {
   cardLabel:  { fontSize: 13, fontWeight: 600, color: '#4a3728', marginTop: 2 },
   cardSub:    { fontSize: 11, color: '#a89078' },
 
+  // Sales breakdown chart
+  breakdownCard: {
+    background: '#fff', borderRadius: 14, border: '1.5px solid #ede8e0',
+    boxShadow: '0 1px 4px rgba(45,31,20,0.05)', overflow: 'hidden',
+  },
+  breakdownHeader: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    padding: '14px 20px', borderBottom: '1px solid #f5ede0', background: '#fefcf9',
+  },
+  breakdownTitle: { fontSize: 14, fontWeight: 700, color: '#2d1f14' },
+  breakdownBody: {
+    display: 'flex', alignItems: 'center', gap: 28, padding: '20px 24px', flexWrap: 'wrap',
+  },
+  chartWrap: { flexShrink: 0 },
+  legendList: { flex: 1, display: 'flex', flexDirection: 'column', gap: 11, minWidth: 200 },
+  legendItem: { display: 'flex', alignItems: 'center', gap: 10 },
+  grandBox:   {
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4,
+    borderLeft: '1px solid #f0e8dc', paddingLeft: 24, marginLeft: 'auto',
+  },
+
   // Detail cards
   detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 },
-  detailCard: { borderRadius: 14, padding: '18px 20px', border: '1.5px solid', display: 'flex', flexDirection: 'column', gap: 4 },
+  detailCard: { borderRadius: 14, padding: '18px 20px', border: '1.5px solid', display: 'flex', flexDirection: 'column', gap: 4, cursor: 'pointer' },
   detailTop:  { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 },
   detailIconWrap: { width: 34, height: 34, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700 },
   warnDot:    { width: 8, height: 8, borderRadius: '50%', background: '#c1440e', marginLeft: 'auto' },
@@ -588,7 +694,7 @@ const s = {
   widgetStat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   widgetBtn:  { padding: '9px 18px', background: '#c1440e', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
 
-  // Recent reports section
+  // Recent reports
   section:      { background: '#fff', borderRadius: 14, border: '1.5px solid #ede8e0', overflow: 'hidden' },
   sectionTitle: { fontSize: 15, fontWeight: 700, color: '#2d1f14', padding: '16px 24px', borderBottom: '1px solid #f5ede0' },
   table:        { width: '100%', borderCollapse: 'collapse' },
