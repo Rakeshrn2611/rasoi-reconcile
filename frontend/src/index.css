@@ -41,3 +41,26 @@ input:focus, select:focus, textarea:focus {
   from { opacity: 0; transform: translateY(-8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Mobile responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .stats-grid  { grid-template-columns: repeat(2, 1fr) !important; }
+  .detail-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .kpi-grid    { grid-template-columns: repeat(2, 1fr) !important; }
+  .recon-root  { grid-template-columns: 1fr !important; }
+
+  .breakdown-body { flex-direction: column !important; align-items: flex-start !important; }
+  .legend-list    { min-width: unset !important; width: 100% !important; }
+  .grand-box      { border-left: none !important; padding-left: 0 !important; border-top: 1px solid #f0e8dc; padding-top: 12px; width: 100%; align-items: flex-start !important; }
+
+  .mobile-card { display: flex !important; }
+  .desktop-table { display: none !important; }
+
+  .context-bar { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+  .date-row    { flex-wrap: wrap !important; }
+}
+
+@media (min-width: 768px) {
+  .mobile-card   { display: none !important; }
+  .desktop-table { display: table !important; }
+}
