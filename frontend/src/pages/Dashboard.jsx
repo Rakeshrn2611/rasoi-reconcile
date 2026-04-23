@@ -5,7 +5,7 @@ const CARD_META = {
   cash_sales:    { label: 'Cash Sales',    color: '#5a7a30', bg: '#f0f5e8', icon: '£',  nav: 'cash' },
   card_sales:    { label: 'Card Sales',    color: '#2563eb', bg: '#eff6ff', icon: '▤',  nav: 'card' },
   total_sales:   { label: 'Total Sales',   color: '#c1440e', bg: '#fef3ee', icon: '∑',  nav: 'cash' },
-  cash_variance: { label: 'Cash Variance', color: '#c1440e', bg: '#fef3ee', icon: '△',  nav: 'cash' },
+  cash_variance: { label: 'Discrepancies', color: '#c1440e', bg: '#fef3ee', icon: '△',  nav: 'cash' },
 };
 
 const DETAIL_META = {
@@ -42,20 +42,6 @@ export default function Dashboard({ venues, showToast, navigateTo, selectedVenue
 
   return (
     <div style={s.root}>
-
-      {/* ── Venue switcher ─────────────────────────────────────────────────── */}
-      <div style={s.venueSwitcher}>
-        <button onClick={() => setSelectedVenue('all')}
-          style={{ ...s.venueBtn, ...(selectedVenue === 'all' ? s.venueBtnActive : {}) }}>
-          Both Venues
-        </button>
-        {venues.map(v => (
-          <button key={v.id} onClick={() => setSelectedVenue(v.id)}
-            style={{ ...s.venueBtn, ...(selectedVenue === v.id ? s.venueBtnActive : {}) }}>
-            {v.name}
-          </button>
-        ))}
-      </div>
 
       {/* ── Top 4 KPI stat cards ──────────────────────────────────────────── */}
       <div className="stats-grid" style={{ ...s.statsGrid, gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)' }}>
@@ -329,13 +315,6 @@ const fDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { d
 const s = {
   root:    { display: 'flex', flexDirection: 'column', gap: 20 },
   loading: { color: '#a89078', padding: 40, textAlign: 'center' },
-
-  venueSwitcher: { display: 'flex', gap: 8, flexWrap: 'wrap' },
-  venueBtn: {
-    padding: '7px 16px', borderRadius: 20, border: '1.5px solid #ede8e0',
-    background: '#fff', color: '#7d6553', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-  },
-  venueBtnActive: { background: '#c1440e', borderColor: '#c1440e', color: '#fff', fontWeight: 600 },
 
   statsGrid:  { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 },
   statCard:   { borderRadius: 14, padding: '18px 20px', border: '1.5px solid', display: 'flex', flexDirection: 'column', gap: 4, background: '#fff', cursor: 'pointer' },
