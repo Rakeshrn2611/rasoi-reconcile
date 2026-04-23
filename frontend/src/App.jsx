@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { api } from './api/client.js';
+import { useIsMobile } from './hooks/useIsMobile.js';
 import Dashboard from './pages/Dashboard.jsx';
 import Reconcile from './pages/Reconcile.jsx';
 import ManagerReports from './pages/ManagerReports.jsx';
 import History from './pages/History.jsx';
 import Settings from './pages/Settings.jsx';
+import CashSales from './pages/CashSales.jsx';
+import CardSales from './pages/CardSales.jsx';
+import Refunds from './pages/Refunds.jsx';
+import Discounts from './pages/Discounts.jsx';
+import GiftCards from './pages/GiftCards.jsx';
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard',       icon: IconGrid },
@@ -14,17 +20,25 @@ const NAV = [
 ];
 
 const ALL_PAGES = {
-  dashboard: { label: 'Dashboard' },
+  dashboard:  { label: 'Dashboard' },
   reconcile:  { label: 'Reconciliation' },
   reports:    { label: 'Manager Reports' },
   history:    { label: 'History' },
   settings:   { label: 'Settings' },
+  cash:       { label: 'Cash Sales',    parent: 'dashboard' },
+  card:       { label: 'Card Sales',    parent: 'dashboard' },
+  refunds:    { label: 'Refunds',       parent: 'dashboard' },
+  discounts:  { label: 'Discounts',     parent: 'dashboard' },
+  gift_cards: { label: 'Gift Vouchers', parent: 'dashboard' },
 };
 
 export default function App() {
-  const [page, setPage] = useState('dashboard');
-  const [venues, setVenues] = useState([]);
-  const [toast, setToast] = useState(null);
+  const [page,           setPage]           = useState('dashboard');
+  const [venues,         setVenues]         = useState([]);
+  const [toast,          setToast]          = useState(null);
+  const [selectedVenue,  setSelectedVenue]  = useState('all');
+  const [sidebarOpen,    setSidebarOpen]    = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     api.getVenues().then(setVenues).catch(() => {});
@@ -35,19 +49,44 @@ export default function App() {
     setTimeout(() => setToast(null), 3500);
   }
 
+  function navigateTo(p) {
+    setPage(p);
+    if (isMobile) setSidebarOpen(false);
+  }
+
   const pageProps = {
     venues,
     showToast,
-    navigateTo: setPage,
+    navigateTo,
     refreshVenues: () => api.getVenues().then(setVenues),
+    selectedVenue,
+    setSelectedVenue,
   };
 
-  const pageTitle = ALL_PAGES[page]?.label ?? 'Dashboard';
+  const pageMeta  = ALL_PAGES[page];
+  const pageTitle = pageMeta?.label ?? 'Dashboard';
+  const parentPage = pageMeta?.parent;
+
+  const navActive = (id) =>
+    page === id || (id === 'dashboard' && ALL_PAGES[page]?.parent === 'dashboard');
 
   return (
     <div style={s.root}>
+      {/* Mobile overlay */}
+      {isMobile && sidebarOpen && (
+        <div style={s.overlay} onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Sidebar */}
-      <aside style={s.sidebar}>
+      <aside style={{
+        ...s.sidebar,
+        ...(isMobile ? {
+          position: 'fixed',
+          zIndex: 200,
+          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.25s ease',
+        } : {}),
+      }}>
         <div style={s.sidebarLogo}>
           <img src="/rasoi-logo.jpg" alt="Rasoi" style={s.logoImg} />
         </div>
@@ -55,9 +94,10 @@ export default function App() {
         <p style={s.navLabel}>Navigate</p>
         <nav style={s.nav}>
           {NAV.map(({ id, label, icon: Icon }) => {
-            const active = page === id;
+            const active = navActive(id);
             return (
-              <button key={id} onClick={() => setPage(id)} style={{ ...s.navBtn, ...(active ? s.navBtnActive : {}) }}>
+              <button key={id} onClick={() => navigateTo(id)}
+                style={{ ...s.navBtn, ...(active ? s.navBtnActive : {}) }}>
                 <span style={{ ...s.navIcon, ...(active ? s.navIconActive : {}) }}>
                   <Icon />
                 </span>
@@ -79,20 +119,53 @@ export default function App() {
       </aside>
 
       {/* Main */}
-      <div style={s.main}>
+      <div style={{ ...s.main, ...(isMobile ? { paddingBottom: 64 } : {}) }}>
         <header style={s.topbar}>
-          <h1 style={s.pageTitle}>{pageTitle}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {isMobile && (
+              <button onClick={() => setSidebarOpen(o => !o)} style={s.hamburger}>
+                <IconMenu />
+              </button>
+            )}
+            {parentPage && (
+              <button onClick={() => navigateTo(parentPage)} style={s.backBtn}>
+                ← Back
+              </button>
+            )}
+            <h1 style={s.pageTitle}>{pageTitle}</h1>
+          </div>
           <span style={s.topDate}>{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
         </header>
 
         <div style={s.content}>
-          {page === 'dashboard' && <Dashboard {...pageProps} />}
-          {page === 'reconcile' && <Reconcile {...pageProps} />}
-          {page === 'reports'   && <ManagerReports {...pageProps} />}
-          {page === 'history'   && <History {...pageProps} />}
-          {page === 'settings'  && <Settings {...pageProps} />}
+          {page === 'dashboard'  && <Dashboard      {...pageProps} />}
+          {page === 'reconcile'  && <Reconcile      {...pageProps} />}
+          {page === 'reports'    && <ManagerReports {...pageProps} />}
+          {page === 'history'    && <History        {...pageProps} />}
+          {page === 'settings'   && <Settings       {...pageProps} />}
+          {page === 'cash'       && <CashSales      {...pageProps} />}
+          {page === 'card'       && <CardSales      {...pageProps} />}
+          {page === 'refunds'    && <Refunds        {...pageProps} />}
+          {page === 'discounts'  && <Discounts      {...pageProps} />}
+          {page === 'gift_cards' && <GiftCards      {...pageProps} />}
         </div>
       </div>
+
+      {/* Mobile bottom nav */}
+      {isMobile && (
+        <nav style={s.bottomNav}>
+          {NAV.map(({ id, label, icon: Icon }) => {
+            const active = navActive(id);
+            return (
+              <button key={id} onClick={() => navigateTo(id)}
+                style={{ ...s.bottomNavBtn, ...(active ? s.bottomNavBtnActive : {}) }}>
+                <span style={{ color: active ? '#c9a87c' : '#6b7280' }}><Icon /></span>
+                <span style={{ fontSize: 10, marginTop: 2 }}>{label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
 
       {toast && (
         <div style={{ ...s.toast, background: toast.type === 'error' ? '#c1440e' : '#5a7a30' }}>
@@ -117,11 +190,18 @@ function IconClock() {
 function IconGear() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
 }
+function IconMenu() {
+  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>;
+}
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = {
   root: { display: 'flex', minHeight: '100vh', background: '#faf7f2' },
+
+  overlay: {
+    position: 'fixed', inset: 0, background: 'rgba(30,20,10,0.45)', zIndex: 199,
+  },
 
   sidebar: {
     width: 240, minHeight: '100vh', background: '#1e140a',
@@ -166,10 +246,33 @@ const s = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     position: 'sticky', top: 0, zIndex: 10,
   },
+  hamburger: {
+    background: 'none', border: 'none', padding: 6, borderRadius: 7,
+    color: '#4a3728', cursor: 'pointer', display: 'flex', alignItems: 'center',
+  },
+  backBtn: {
+    padding: '5px 12px', background: '#f5ede0', border: '1px solid #e8dcc8',
+    borderRadius: 7, fontSize: 13, color: '#7d6553', cursor: 'pointer', fontWeight: 500,
+    whiteSpace: 'nowrap',
+  },
   pageTitle: { fontSize: 21, fontWeight: 800, color: '#1a0b04', letterSpacing: '-0.4px' },
   topDate: { fontSize: 13, color: '#a89078' },
 
   content: { padding: 28, flex: 1 },
+
+  bottomNav: {
+    position: 'fixed', bottom: 0, left: 0, right: 0,
+    height: 64, background: '#fff', borderTop: '1px solid #e8dfd4',
+    display: 'flex', alignItems: 'stretch', zIndex: 100,
+  },
+  bottomNavBtn: {
+    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+    justifyContent: 'center', gap: 2, background: 'none', border: 'none',
+    color: '#6b7280', fontSize: 10, fontWeight: 500, cursor: 'pointer',
+  },
+  bottomNavBtnActive: {
+    color: '#c9a87c', fontWeight: 700,
+  },
 
   toast: {
     position: 'fixed', bottom: 24, right: 24,
