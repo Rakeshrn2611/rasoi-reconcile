@@ -118,9 +118,12 @@ app.get('/api/dashboard/stats', (req, res) => {
   const vp   = venue_id ? [venue_id] : [];
 
   const totals = db.prepare(`
-    SELECT COALESCE(SUM(cash_sales),0) as total_cash,
-           COALESCE(SUM(card_sales),0) as total_card,
-           COALESCE(SUM(total_sales),0) as total
+    SELECT COALESCE(SUM(cash_sales),0)         as total_cash,
+           COALESCE(SUM(card_sales),0)         as total_card,
+           COALESCE(SUM(total_sales),0)        as total,
+           COALESCE(SUM(deposits_used),0)      as total_deposits,
+           COALESCE(SUM(gift_cards_redeemed),0) as total_gifts,
+           COALESCE(SUM(petty_cash),0)         as total_petty
     FROM manager_reports WHERE date>=? AND date<=?${vc}`).get(f, t, ...vp);
 
   const reconciled = db.prepare(`
@@ -183,9 +186,12 @@ app.get('/api/dashboard/stats', (req, res) => {
     ORDER BY gd.created_at DESC LIMIT 10`).all(f, t, ...vp);
 
   res.json({
-    total_cash:    totals.total_cash,
-    total_card:    totals.total_card,
-    total_sales:   totals.total,
+    total_cash:     totals.total_cash,
+    total_card:     totals.total_card,
+    total_sales:    totals.total,
+    total_deposits: totals.total_deposits,
+    total_gifts:    totals.total_gifts,
+    total_petty:    totals.total_petty,
     reconciled:    reconciled.count,
     pending:       pending.count,
     cash_variance: variance.total_variance,
