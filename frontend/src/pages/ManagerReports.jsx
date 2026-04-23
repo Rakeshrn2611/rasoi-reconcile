@@ -14,8 +14,8 @@ const EMPTY = {
   shift_notes: '',
 };
 
-const NOTES   = [{ k: 'notes_50', label: '£50', val: 50 }, { k: 'notes_20', label: '£20', val: 20 }, { k: 'notes_10', label: '£10', val: 10 }, { k: 'notes_5', label: '£5', val: 5 }];
-const COINS   = [
+const NOTES = [{ k: 'notes_50', label: '£50', val: 50 }, { k: 'notes_20', label: '£20', val: 20 }, { k: 'notes_10', label: '£10', val: 10 }, { k: 'notes_5', label: '£5', val: 5 }];
+const COINS = [
   { k: 'coins_200', label: '£2', val: 2 }, { k: 'coins_100', label: '£1', val: 1 },
   { k: 'coins_50',  label: '50p', val: 0.5 }, { k: 'coins_20', label: '20p', val: 0.2 },
   { k: 'coins_10',  label: '10p', val: 0.1 }, { k: 'coins_2',  label: '2p',  val: 0.02 },
@@ -31,11 +31,8 @@ export default function ManagerReports({ venues, showToast }) {
   const [loading, setLoading] = useState(false);
   const [open, setOpen]       = useState({ sales: true, cash: true, petty: true, discounts: false, tips: false, notes: false });
 
-  // Auto-set venue when only one venue or when venue changes
   useEffect(() => {
-    if (venues.length === 1 && !form.venue_id) {
-      setForm(f => ({ ...f, venue_id: venues[0].id }));
-    }
+    if (venues.length === 1 && !form.venue_id) setForm(f => ({ ...f, venue_id: venues[0].id }));
   }, [venues]);
 
   useEffect(() => { loadReports(); }, [filter]);
@@ -56,10 +53,27 @@ export default function ManagerReports({ venues, showToast }) {
   const physicalCash = useMemo(() => {
     let total = 0;
     for (const { k, val } of [...NOTES, ...COINS]) total += (parseFloat(form[k]) || 0) * val;
-    return total;
-  }, [form]);
+    return Math.round(total * 100) / 100;
+  }, [form.notes_50, form.notes_20, form.notes_10, form.notes_5,
+      form.coins_200, form.coins_100, form.coins_50, form.coins_20,
+      form.coins_10, form.coins_2, form.coins_1]);
 
-  const totalCash = physicalCash + (parseFloat(form.petty_cash) || 0);
+  const hasDenomsEntered = useMemo(() =>
+    [...NOTES, ...COINS].some(({ k }) => parseFloat(form[k]) > 0),
+    [form.notes_50, form.notes_20, form.notes_10, form.notes_5,
+     form.coins_200, form.coins_100, form.coins_50, form.coins_20,
+     form.coins_10, form.coins_2, form.coins_1]);
+
+  // Auto-fill cash_sales when denominations are entered
+  useEffect(() => {
+    if (!hasDenomsEntered) return;
+    const v = physicalCash.toFixed(2);
+    setForm(f => f.cash_sales === v ? f : { ...f, cash_sales: v });
+  }, [physicalCash, hasDenomsEntered]);
+
+  const pettyVal  = parseFloat(form.petty_cash) || 0;
+  // Final Cash Sales = physical cash counted + petty cash (for display)
+  const finalCash = physicalCash + pettyVal;
 
   const grandTotal = useMemo(() => {
     return (parseFloat(form.cash_sales) || 0) +
@@ -67,7 +81,7 @@ export default function ManagerReports({ venues, showToast }) {
            (parseFloat(form.deposits_used) || 0) +
            (parseFloat(form.gift_cards_redeemed) || 0) +
            (parseFloat(form.petty_cash) || 0);
-  }, [form]);
+  }, [form.cash_sales, form.card_sales, form.deposits_used, form.gift_cards_redeemed, form.petty_cash]);
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); if (errors[k]) setErrors(e => ({ ...e, [k]: '' })); }
   function toggle(k) { setOpen(o => ({ ...o, [k]: !o[k] })); }
@@ -100,7 +114,7 @@ export default function ManagerReports({ venues, showToast }) {
     catch (err) { showToast(err.message, 'error'); }
   }
 
-  const f2 = n => (Number(n) || 0).toFixed(2);
+  const f2    = n => (Number(n) || 0).toFixed(2);
   const fDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
   return (
@@ -136,7 +150,15 @@ export default function ManagerReports({ venues, showToast }) {
           {/* ── Sales ── */}
           <Section label="Sales" icon="£" open={open.sales} onToggle={() => toggle('sales')}>
             <div style={s.grid2}>
-              <NumField label="Cash Sales" value={form.cash_sales} onChange={v => set('cash_sales', v)} prefix="£" />
+              <NumField
+                label="Cash Sales"
+                value={form.cash_sales}
+                onChange={v => set('cash_sales', v)}
+                prefix="£"
+                readOnly={hasDenomsEntered}
+                badge={hasDenomsEntered ? 'Auto' : null}
+                hint={hasDenomsEntered ? 'Counted Cash (auto-filled from denomination count)' : null}
+              />
               <NumField label="Card Sales" value={form.card_sales} onChange={v => set('card_sales', v)} prefix="£" />
               <NumField label="Deposits Used" value={form.deposits_used} onChange={v => set('deposits_used', v)} prefix="£" />
               <NumField label="Gift Vouchers Redeemed" value={form.gift_cards_redeemed} onChange={v => set('gift_cards_redeemed', v)} prefix="£" />
@@ -145,7 +167,7 @@ export default function ManagerReports({ venues, showToast }) {
 
           {/* ── Cash Breakdown ── */}
           <Section label="Cash Count" icon="🪙" open={open.cash} onToggle={() => toggle('cash')}>
-            <p style={s.hint}>Count each denomination. Total is auto-calculated.</p>
+            <p style={s.hint}>Count each denomination — Cash Sales will auto-fill.</p>
             <div style={s.denomGroup}>
               <p style={s.denomLabel}>Notes</p>
               <div style={s.denomRow}>
@@ -163,14 +185,17 @@ export default function ManagerReports({ venues, showToast }) {
               </div>
             </div>
             <div style={s.calcBox}>
-              <span style={s.calcLabel}>Physical Cash Total</span>
+              <div>
+                <span style={s.calcLabel}>Physical Cash Counted</span>
+                <p style={{ fontSize: 11, color: '#a89078', margin: '2px 0 0' }}>Notes + Coins only</p>
+              </div>
               <span style={s.calcValue}>£{f2(physicalCash)}</span>
             </div>
           </Section>
 
           {/* ── Petty Cash ── */}
           <Section label="Petty Cash" icon="📋" open={open.petty} onToggle={() => toggle('petty')}>
-            <p style={s.hint}>Petty cash is included in the grand total.</p>
+            <p style={s.hint}>Added on top of physical cash to give final cash sales.</p>
             <div style={s.grid2}>
               <NumField label="Amount" value={form.petty_cash} onChange={v => set('petty_cash', v)} prefix="£" />
               <label style={s.fieldLabel}>
@@ -180,6 +205,22 @@ export default function ManagerReports({ venues, showToast }) {
                 {errors.petty_cash_notes && <span style={s.errMsg}>{errors.petty_cash_notes}</span>}
               </label>
             </div>
+            {hasDenomsEntered && pettyVal > 0 && (
+              <div style={s.finalCashBox}>
+                <div style={s.finalCashRow}>
+                  <span style={{ fontSize: 12, color: '#7d6553' }}>Physical Cash Counted</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#4a3728' }}>£{f2(physicalCash)}</span>
+                </div>
+                <div style={s.finalCashRow}>
+                  <span style={{ fontSize: 12, color: '#7d6553' }}>+ Petty Cash</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#4a3728' }}>£{f2(pettyVal)}</span>
+                </div>
+                <div style={{ ...s.finalCashRow, borderTop: '1px solid #e8c97a', paddingTop: 6, marginTop: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#2d1f14' }}>Final Cash Sales</span>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: '#c88a2e' }}>£{f2(finalCash)}</span>
+                </div>
+              </div>
+            )}
           </Section>
 
           {/* ── Discounts ── */}
@@ -228,19 +269,30 @@ export default function ManagerReports({ venues, showToast }) {
               style={{ ...s.input, height: 80, resize: 'vertical' }} />
           </Section>
 
-          {/* ── Totals summary ── */}
+          {/* ── Auto-Calculated Totals ── */}
           <div style={s.totalsBox}>
             <h3 style={s.totalsTitle}>Auto-Calculated Totals</h3>
             <div style={s.totalsGrid}>
-              <TotalRow label="Physical Cash (counted)" value={physicalCash} />
-              <TotalRow label="+ Petty Cash" value={parseFloat(form.petty_cash) || 0} />
-              <TotalRow label="= Total Cash in Till" value={totalCash} bold />
-              <div style={s.totalsDivider} />
-              <TotalRow label="Cash Sales" value={parseFloat(form.cash_sales) || 0} />
+
+              {hasDenomsEntered ? (
+                <>
+                  <TotalRow label="Physical Cash (counted notes + coins)" value={physicalCash} />
+                  <TotalRow label="+ Petty Cash" value={pettyVal} />
+                  <TotalRow label="= Final Cash Sales" value={finalCash} bold accent2 />
+                  <div style={s.totalsDivider} />
+                </>
+              ) : (
+                <>
+                  <TotalRow label="Cash Sales (manually entered)" value={parseFloat(form.cash_sales) || 0} />
+                  <div style={s.totalsDivider} />
+                </>
+              )}
+
               <TotalRow label="Card Sales" value={parseFloat(form.card_sales) || 0} />
               <TotalRow label="Deposits Used" value={parseFloat(form.deposits_used) || 0} />
-              <TotalRow label="Gift Vouchers" value={parseFloat(form.gift_cards_redeemed) || 0} />
-              <TotalRow label="Petty Cash" value={parseFloat(form.petty_cash) || 0} />
+              <TotalRow label="Gift Vouchers Redeemed" value={parseFloat(form.gift_cards_redeemed) || 0} />
+              {!hasDenomsEntered && <TotalRow label="Petty Cash" value={pettyVal} />}
+
               <div style={{ ...s.totalsDivider, marginTop: 4 }} />
               <TotalRow label="Grand Total" value={grandTotal} accent />
             </div>
@@ -313,16 +365,26 @@ function Section({ label, icon, open, onToggle, children }) {
   );
 }
 
-function NumField({ label, value, onChange, prefix }) {
+function NumField({ label, value, onChange, prefix, readOnly, badge, hint }) {
   return (
     <label style={s.fieldLabel}>
-      {label}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span>{label}</span>
+        {badge && (
+          <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: '#5a7a30', color: '#fff', letterSpacing: '0.3px' }}>
+            {badge}
+          </span>
+        )}
+      </div>
       <div style={s.prefixWrap}>
         {prefix && <span style={s.prefix}>{prefix}</span>}
         <input type="number" step="0.01" min="0" placeholder="0.00"
           value={value} onChange={e => onChange(e.target.value)}
-          style={{ ...s.input, paddingLeft: prefix ? 28 : 10 }} />
+          readOnly={readOnly}
+          style={{ ...s.input, paddingLeft: prefix ? 28 : 10,
+            ...(readOnly ? { background: '#f5f9f0', color: '#3d6018', fontWeight: 700, cursor: 'default', border: '1.5px solid #b5d08a' } : {}) }} />
       </div>
+      {hint && <span style={{ fontSize: 10, color: '#5a7a30', marginTop: 1 }}>{hint}</span>}
     </label>
   );
 }
@@ -337,11 +399,15 @@ function DenomField({ label, value, onChange }) {
   );
 }
 
-function TotalRow({ label, value, bold, accent }) {
+function TotalRow({ label, value, bold, accent, accent2 }) {
+  const color = accent ? '#c1440e' : accent2 ? '#c88a2e' : '#2d1f14';
+  const fwt   = bold || accent || accent2 ? 800 : 500;
   return (
     <div style={s.totalRow}>
-      <span style={{ fontSize: 13, color: accent ? '#c1440e' : '#7d6553', fontWeight: bold || accent ? 700 : 400 }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: bold || accent ? 800 : 500, color: accent ? '#c1440e' : '#2d1f14' }}>
+      <span style={{ fontSize: 13, color: accent ? '#c1440e' : accent2 ? '#c88a2e' : '#7d6553', fontWeight: bold || accent || accent2 ? 700 : 400 }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 13, fontWeight: fwt, color }}>
         £{(Number(value) || 0).toFixed(2)}
       </span>
     </div>
@@ -388,7 +454,7 @@ const s = {
   req:     { color: '#c1440e' },
 
   fieldLabel: { display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, fontWeight: 600, color: '#4a3728' },
-  input:      { padding: '8px 10px', border: '1.5px solid #ede8e0', borderRadius: 8, fontSize: 14, color: '#2d1f14', background: '#fff', width: '100%' },
+  input:      { padding: '8px 10px', border: '1.5px solid #ede8e0', borderRadius: 8, fontSize: 14, color: '#2d1f14', background: '#fff', width: '100%', boxSizing: 'border-box' },
   inputErr:   { borderColor: '#c1440e' },
   errMsg:     { color: '#c1440e', fontSize: 11, marginTop: 2 },
   prefixWrap: { position: 'relative' },
@@ -404,6 +470,9 @@ const s = {
   calcBox:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fef3ee', border: '1px solid #f5c9a8', borderRadius: 9, padding: '10px 14px', marginTop: 8 },
   calcLabel: { fontSize: 13, fontWeight: 600, color: '#7d6553' },
   calcValue: { fontSize: 18, fontWeight: 800, color: '#c1440e' },
+
+  finalCashBox: { background: '#fdf5e0', border: '1px solid #e8c97a', borderRadius: 9, padding: '10px 14px', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5 },
+  finalCashRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
 
   discBlock: { display: 'flex', flexDirection: 'column', gap: 12 },
   discRow:   { display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 10 },
