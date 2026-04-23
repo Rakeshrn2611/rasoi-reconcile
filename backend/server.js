@@ -379,7 +379,8 @@ app.get('/api/reconcile/summary', (req, res) => {
   const { venue_id, from, to } = req.query;
   let q = `
     SELECT mr.date, mr.venue_id, v.name as venue_name,
-           mr.cash_sales, mr.card_sales, mr.total_sales, mr.notes,
+           mr.cash_sales, mr.card_sales, mr.total_sales, mr.grand_total,
+           mr.physical_cash, mr.petty_cash, mr.notes,
            sd.cash as sq_cash, sd.card as sq_card, sd.total as sq_total,
            sd.refunds, sd.discounts, sd.comps
     FROM manager_reports mr
@@ -395,10 +396,64 @@ app.get('/api/reconcile/summary', (req, res) => {
   res.json(db.prepare(q).all(...p).map(row => ({
     ...row,
     reconciliation: row.sq_total == null ? null : reconcile(
-      { cash_sales: row.cash_sales, card_sales: row.card_sales, total_sales: row.total_sales },
+      { cash_sales: row.cash_sales, card_sales: row.card_sales, total_sales: row.total_sales,
+        physical_cash: row.physical_cash, petty_cash: row.petty_cash, grand_total: row.grand_total },
       { cash: row.sq_cash, card: row.sq_card, total: row.sq_total, refunds: row.refunds, discounts: row.discounts, comps: row.comps }
     ),
   })));
+});
+
+// ── Detail list endpoints ─────────────────────────────────────────────────────
+
+app.get('/api/refunds', (req, res) => {
+  const { venue_id, from, to } = req.query;
+  let q = `SELECT rd.*, v.name as venue_name FROM square_refund_details rd JOIN venues v ON v.id=rd.venue_id WHERE 1=1`;
+  const p = [];
+  if (venue_id) { q += ' AND rd.venue_id=?'; p.push(venue_id); }
+  if (from)     { q += ' AND rd.date>=?';    p.push(from); }
+  if (to)       { q += ' AND rd.date<=?';    p.push(to); }
+  q += ' ORDER BY rd.date DESC, rd.amount DESC';
+  res.json(db.prepare(q).all(...p));
+});
+
+app.get('/api/comps', (req, res) => {
+  const { venue_id, from, to } = req.query;
+  let q = `SELECT cd.*, v.name as venue_name FROM square_comp_details cd JOIN venues v ON v.id=cd.venue_id WHERE 1=1`;
+  const p = [];
+  if (venue_id) { q += ' AND cd.venue_id=?'; p.push(venue_id); }
+  if (from)     { q += ' AND cd.date>=?';    p.push(from); }
+  if (to)       { q += ' AND cd.date<=?';    p.push(to); }
+  q += ' ORDER BY cd.date DESC, cd.amount DESC';
+  res.json(db.prepare(q).all(...p));
+});
+
+app.get('/api/discounts', (req, res) => {
+  const { venue_id, from, to } = req.query;
+  let q = `SELECT dd.*, v.name as venue_name FROM square_discount_details dd JOIN venues v ON v.id=dd.venue_id WHERE 1=1`;
+  const p = [];
+  if (venue_id) { q += ' AND dd.venue_id=?'; p.push(venue_id); }
+  if (from)     { q += ' AND dd.date>=?';    p.push(from); }
+  if (to)       { q += ' AND dd.date<=?';    p.push(to); }
+  q += ' ORDER BY dd.date DESC, dd.amount DESC';
+  res.json(db.prepare(q).all(...p));
+});
+
+app.get('/api/gift-cards', (req, res) => {
+  const { venue_id, from, to } = req.query;
+  let q = `SELECT gd.*, v.name as venue_name FROM square_gift_card_details gd JOIN venues v ON v.id=gd.venue_id WHERE 1=1`;
+  const p = [];
+  if (venue_id) { q += ' AND gd.venue_id=?'; p.push(venue_id); }
+  if (from)     { q += ' AND gd.date>=?';    p.push(from); }
+  if (to)       { q += ' AND gd.date<=?';    p.push(to); }
+  q += ' ORDER BY gd.date DESC, gd.amount DESC';
+  res.json(db.prepare(q).all(...p));
+});
+
+app.patch('/api/square/notes', (req, res) => {
+  const { venue_id, date, recon_notes } = req.body;
+  if (!venue_id || !date) return res.status(400).json({ error: 'venue_id and date required' });
+  db.prepare('UPDATE square_data SET recon_notes=? WHERE venue_id=? AND date=?').run(recon_notes || '', venue_id, date);
+  res.json({ ok: true });
 });
 
 app.listen(PORT, () => console.log(`Reconcile API running on http://localhost:${PORT}`));
