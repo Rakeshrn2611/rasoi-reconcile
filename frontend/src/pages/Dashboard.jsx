@@ -5,8 +5,6 @@ const CARD_META = {
   cash_sales:    { label: 'Cash Sales',    color: '#5a7a30', bg: '#f0f5e8', icon: '£',  nav: 'cash' },
   card_sales:    { label: 'Card Sales',    color: '#2563eb', bg: '#eff6ff', icon: '▤',  nav: 'card' },
   total_sales:   { label: 'Total Sales',   color: '#c1440e', bg: '#fef3ee', icon: '∑',  nav: 'cash' },
-  reconciled:    { label: 'Reconciled',    color: '#5a7a30', bg: '#f0f5e8', icon: '✓',  nav: 'reconcile' },
-  pending:       { label: 'Pending',       color: '#c88a2e', bg: '#fdf5e0', icon: '◷',  nav: 'reconcile' },
   cash_variance: { label: 'Cash Variance', color: '#c1440e', bg: '#fef3ee', icon: '△',  nav: 'cash' },
 };
 
@@ -22,6 +20,7 @@ const VENUE_COLORS = ['#c1440e', '#2563eb', '#5a7a30', '#c88a2e'];
 export default function Dashboard({ venues, showToast, navigateTo, selectedVenue, setSelectedVenue }) {
   const [stats,   setStats]   = useState(null);
   const [loading, setLoading] = useState(true);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   useEffect(() => {
     setLoading(true);
@@ -58,14 +57,12 @@ export default function Dashboard({ venues, showToast, navigateTo, selectedVenue
         ))}
       </div>
 
-      {/* ── Top 6 KPI stat cards ──────────────────────────────────────────── */}
-      <div className="stats-grid" style={s.statsGrid}>
-        <StatCard id="cash_sales"    value={`£${f2(stats?.total_cash)}`}    sub="This period"        navigateTo={navigateTo} />
-        <StatCard id="card_sales"    value={`£${f2(stats?.total_card)}`}    sub="This period"        navigateTo={navigateTo} />
-        <StatCard id="total_sales"   value={`£${f2(stats?.total_sales)}`}   sub={venueLabel}         navigateTo={navigateTo} />
-        <StatCard id="reconciled"    value={stats?.reconciled ?? 0}          sub="Reports matched"    navigateTo={navigateTo} />
-        <StatCard id="pending"       value={stats?.pending ?? 0}             sub="Awaiting reconcile" navigateTo={navigateTo} />
-        <StatCard id="cash_variance" value={`£${f2(stats?.cash_variance)}`} sub="Total this period"  navigateTo={navigateTo}
+      {/* ── Top 4 KPI stat cards ──────────────────────────────────────────── */}
+      <div className="stats-grid" style={{ ...s.statsGrid, gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)' }}>
+        <StatCard id="cash_sales"    value={`£${f2(stats?.total_cash)}`}    sub="This period"       navigateTo={navigateTo} />
+        <StatCard id="card_sales"    value={`£${f2(stats?.total_card)}`}    sub="This period"       navigateTo={navigateTo} />
+        <StatCard id="total_sales"   value={`£${f2(stats?.total_sales)}`}   sub={venueLabel}        navigateTo={navigateTo} />
+        <StatCard id="cash_variance" value={`£${f2(stats?.cash_variance)}`} sub="Total this period" navigateTo={navigateTo}
           override={(stats?.cash_variance || 0) > 20 ? { color: '#c1440e', bg: '#fef3ee' } : { color: '#5a7a30', bg: '#f0f5e8' }} />
       </div>
 
