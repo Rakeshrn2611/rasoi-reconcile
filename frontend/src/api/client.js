@@ -31,11 +31,15 @@ export const api = {
   getComps:     (params = {}) => request(`/comps?${new URLSearchParams(params)}`),
   getDiscounts: (params = {}) => request(`/discounts?${new URLSearchParams(params)}`),
   getGiftCards: (params = {}) => request(`/gift-cards?${new URLSearchParams(params)}`),
+  updateReport: (id, data) => request(`/reports/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
+
   saveReconNotes: (venue_id, date, notes) => request('/square/notes', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ venue_id, date, recon_notes: notes }),
   }),
+  lockRecon: (venue_id, date) => request('/square/lock', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ venue_id, date }) }),
+  unlockRecon: (venue_id, date) => request('/square/unlock', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ venue_id, date }) }),
   exportExcel: (params = {}) => {
     const url = `${BASE}/export/excel?${new URLSearchParams(params)}`;
     window.location.href = url;
