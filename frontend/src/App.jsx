@@ -161,12 +161,12 @@ const s = {
 
   main: { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 },
   topbar: {
-    background: '#fff9f4', borderBottom: '1px solid #ede8e0',
+    background: '#ffffff', borderBottom: '1px solid #e8dfd4',
     padding: '0 28px', height: 60,
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     position: 'sticky', top: 0, zIndex: 10,
   },
-  pageTitle: { fontSize: 17, fontWeight: 700, color: '#2d1f14' },
+  pageTitle: { fontSize: 21, fontWeight: 800, color: '#1a0b04', letterSpacing: '-0.4px' },
   topDate: { fontSize: 13, color: '#a89078' },
 
   content: { padding: 28, flex: 1 },
