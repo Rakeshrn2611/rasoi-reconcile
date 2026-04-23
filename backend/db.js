@@ -124,6 +124,7 @@ const migrations = [
   `ALTER TABLE manager_reports ADD COLUMN cash_tips REAL DEFAULT 0`,
   `ALTER TABLE manager_reports ADD COLUMN shift_notes TEXT DEFAULT ''`,
   `ALTER TABLE manager_reports ADD COLUMN grand_total REAL DEFAULT 0`,
+  `ALTER TABLE square_data ADD COLUMN recon_notes TEXT DEFAULT ''`,
 ];
 for (const sql of migrations) { try { db.exec(sql); } catch {} }
 
