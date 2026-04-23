@@ -36,4 +36,8 @@ export const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ venue_id, date, recon_notes: notes }),
   }),
+  exportExcel: (params = {}) => {
+    const url = `${BASE}/export/excel?${new URLSearchParams(params)}`;
+    window.location.href = url;
+  },
 };
