@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '../api/client.js';
+import { useIsMobile } from '../hooks/useIsMobile.js';
 
 const EMPTY = {
   date: today(), venue_id: '',
@@ -23,6 +24,8 @@ const COINS = [
 ];
 
 export default function ManagerReports({ venues, showToast }) {
+  const isMobile = useIsMobile();
+
   const [form, setForm]       = useState({ ...EMPTY });
   const [errors, setErrors]   = useState({});
   const [saving, setSaving]   = useState(false);
@@ -117,8 +120,10 @@ export default function ManagerReports({ venues, showToast }) {
   const f2    = n => (Number(n) || 0).toFixed(2);
   const fDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
+  const inputStyle = { ...s.input, fontSize: isMobile ? 16 : 14 };
+
   return (
-    <div style={s.root}>
+    <div style={{ ...s.root, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
 
       {/* ── Form column ────────────────────────────────────────────────── */}
       <div style={s.formCol}>
@@ -129,17 +134,17 @@ export default function ManagerReports({ venues, showToast }) {
           </div>
 
           {/* Basic info */}
-          <div style={s.basicRow}>
+          <div style={{ ...s.basicRow, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
             <label style={s.fieldLabel}>
               Date <span style={s.req}>*</span>
               <input type="date" value={form.date} max={today()}
-                onChange={e => set('date', e.target.value)} style={{ ...s.input, ...(errors.date ? s.inputErr : {}) }} />
+                onChange={e => set('date', e.target.value)} style={{ ...inputStyle, ...(errors.date ? s.inputErr : {}) }} />
               {errors.date && <span style={s.errMsg}>{errors.date}</span>}
             </label>
             <label style={s.fieldLabel}>
               Venue <span style={s.req}>*</span>
               <select value={form.venue_id} onChange={e => set('venue_id', e.target.value)}
-                style={{ ...s.input, ...(errors.venue_id ? s.inputErr : {}) }}>
+                style={{ ...inputStyle, ...(errors.venue_id ? s.inputErr : {}) }}>
                 <option value="">Select venue…</option>
                 {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
@@ -148,8 +153,8 @@ export default function ManagerReports({ venues, showToast }) {
           </div>
 
           {/* ── Sales ── */}
-          <Section label="Sales" icon="£" open={open.sales} onToggle={() => toggle('sales')}>
-            <div style={s.grid2}>
+          <Section label="Sales" icon="£" open={open.sales} onToggle={() => toggle('sales')} isMobile={isMobile}>
+            <div style={{ ...s.grid2, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
               <NumField
                 label="Cash Sales"
                 value={form.cash_sales}
@@ -158,21 +163,22 @@ export default function ManagerReports({ venues, showToast }) {
                 readOnly={hasDenomsEntered}
                 badge={hasDenomsEntered ? 'Auto' : null}
                 hint={hasDenomsEntered ? 'Counted Cash (auto-filled from denomination count)' : null}
+                isMobile={isMobile}
               />
-              <NumField label="Card Sales" value={form.card_sales} onChange={v => set('card_sales', v)} prefix="£" />
-              <NumField label="Deposits Used" value={form.deposits_used} onChange={v => set('deposits_used', v)} prefix="£" />
-              <NumField label="Gift Vouchers Redeemed" value={form.gift_cards_redeemed} onChange={v => set('gift_cards_redeemed', v)} prefix="£" />
+              <NumField label="Card Sales" value={form.card_sales} onChange={v => set('card_sales', v)} prefix="£" isMobile={isMobile} />
+              <NumField label="Deposits Used" value={form.deposits_used} onChange={v => set('deposits_used', v)} prefix="£" isMobile={isMobile} />
+              <NumField label="Gift Vouchers Redeemed" value={form.gift_cards_redeemed} onChange={v => set('gift_cards_redeemed', v)} prefix="£" isMobile={isMobile} />
             </div>
           </Section>
 
           {/* ── Cash Breakdown ── */}
-          <Section label="Cash Count" icon="🪙" open={open.cash} onToggle={() => toggle('cash')}>
+          <Section label="Cash Count" icon="🪙" open={open.cash} onToggle={() => toggle('cash')} isMobile={isMobile}>
             <p style={s.hint}>Count each denomination — Cash Sales will auto-fill.</p>
             <div style={s.denomGroup}>
               <p style={s.denomLabel}>Notes</p>
               <div style={s.denomRow}>
                 {NOTES.map(({ k, label }) => (
-                  <DenomField key={k} label={label} value={form[k]} onChange={v => set(k, v)} />
+                  <DenomField key={k} label={label} value={form[k]} onChange={v => set(k, v)} isMobile={isMobile} />
                 ))}
               </div>
             </div>
@@ -180,7 +186,7 @@ export default function ManagerReports({ venues, showToast }) {
               <p style={s.denomLabel}>Coins</p>
               <div style={s.denomRow}>
                 {COINS.map(({ k, label }) => (
-                  <DenomField key={k} label={label} value={form[k]} onChange={v => set(k, v)} />
+                  <DenomField key={k} label={label} value={form[k]} onChange={v => set(k, v)} isMobile={isMobile} />
                 ))}
               </div>
             </div>
@@ -194,14 +200,14 @@ export default function ManagerReports({ venues, showToast }) {
           </Section>
 
           {/* ── Petty Cash ── */}
-          <Section label="Petty Cash" icon="📋" open={open.petty} onToggle={() => toggle('petty')}>
+          <Section label="Petty Cash" icon="📋" open={open.petty} onToggle={() => toggle('petty')} isMobile={isMobile}>
             <p style={s.hint}>Added on top of physical cash to give final cash sales.</p>
-            <div style={s.grid2}>
-              <NumField label="Amount" value={form.petty_cash} onChange={v => set('petty_cash', v)} prefix="£" />
+            <div style={{ ...s.grid2, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
+              <NumField label="Amount" value={form.petty_cash} onChange={v => set('petty_cash', v)} prefix="£" isMobile={isMobile} />
               <label style={s.fieldLabel}>
                 Notes <span style={s.req}>*</span>
                 <input value={form.petty_cash_notes} onChange={e => set('petty_cash_notes', e.target.value)}
-                  placeholder="What was it used for?" style={{ ...s.input, ...(errors.petty_cash_notes ? s.inputErr : {}) }} />
+                  placeholder="What was it used for?" style={{ ...inputStyle, ...(errors.petty_cash_notes ? s.inputErr : {}) }} />
                 {errors.petty_cash_notes && <span style={s.errMsg}>{errors.petty_cash_notes}</span>}
               </label>
             </div>
@@ -224,49 +230,49 @@ export default function ManagerReports({ venues, showToast }) {
           </Section>
 
           {/* ── Discounts ── */}
-          <Section label="Discounts & Complimentary (not in sales)" icon="%" open={open.discounts} onToggle={() => toggle('discounts')}>
+          <Section label="Discounts & Complimentary (not in sales)" icon="%" open={open.discounts} onToggle={() => toggle('discounts')} isMobile={isMobile}>
             <p style={s.hint}>These are tracked separately — not deducted from sales totals.</p>
             <div style={s.discBlock}>
-              <div style={s.discRow}>
-                <NumField label="Staff Discount" value={form.staff_discount} onChange={v => set('staff_discount', v)} prefix="£" />
+              <div style={{ ...s.discRow, gridTemplateColumns: isMobile ? '1fr' : '1fr 1.5fr' }}>
+                <NumField label="Staff Discount" value={form.staff_discount} onChange={v => set('staff_discount', v)} prefix="£" isMobile={isMobile} />
                 <label style={s.fieldLabel}>
                   Notes
                   <input value={form.staff_discount_notes} onChange={e => set('staff_discount_notes', e.target.value)}
-                    placeholder="Staff name / reason" style={s.input} />
+                    placeholder="Staff name / reason" style={inputStyle} />
                 </label>
               </div>
-              <div style={s.discRow}>
-                <NumField label="Friends & Family" value={form.fnf_discount} onChange={v => set('fnf_discount', v)} prefix="£" />
+              <div style={{ ...s.discRow, gridTemplateColumns: isMobile ? '1fr' : '1fr 1.5fr' }}>
+                <NumField label="Friends & Family" value={form.fnf_discount} onChange={v => set('fnf_discount', v)} prefix="£" isMobile={isMobile} />
                 <label style={s.fieldLabel}>
                   Notes
                   <input value={form.fnf_discount_notes} onChange={e => set('fnf_discount_notes', e.target.value)}
-                    placeholder="Name / occasion" style={s.input} />
+                    placeholder="Name / occasion" style={inputStyle} />
                 </label>
               </div>
-              <div style={s.discRow}>
-                <NumField label="Complimentary Items" value={form.complimentary} onChange={v => set('complimentary', v)} prefix="£" />
+              <div style={{ ...s.discRow, gridTemplateColumns: isMobile ? '1fr' : '1fr 1.5fr' }}>
+                <NumField label="Complimentary Items" value={form.complimentary} onChange={v => set('complimentary', v)} prefix="£" isMobile={isMobile} />
                 <label style={s.fieldLabel}>
                   Notes
                   <input value={form.complimentary_notes} onChange={e => set('complimentary_notes', e.target.value)}
-                    placeholder="What was given / why" style={s.input} />
+                    placeholder="What was given / why" style={inputStyle} />
                 </label>
               </div>
             </div>
           </Section>
 
           {/* ── Tips ── */}
-          <Section label="Tips" icon="★" open={open.tips} onToggle={() => toggle('tips')}>
-            <div style={s.grid2}>
-              <NumField label="Card Tips" value={form.card_tips} onChange={v => set('card_tips', v)} prefix="£" />
-              <NumField label="Cash Tips" value={form.cash_tips} onChange={v => set('cash_tips', v)} prefix="£" />
+          <Section label="Tips" icon="★" open={open.tips} onToggle={() => toggle('tips')} isMobile={isMobile}>
+            <div style={{ ...s.grid2, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
+              <NumField label="Card Tips" value={form.card_tips} onChange={v => set('card_tips', v)} prefix="£" isMobile={isMobile} />
+              <NumField label="Cash Tips" value={form.cash_tips} onChange={v => set('cash_tips', v)} prefix="£" isMobile={isMobile} />
             </div>
           </Section>
 
           {/* ── Shift Notes ── */}
-          <Section label="Shift Notes" icon="📝" open={open.notes} onToggle={() => toggle('notes')}>
+          <Section label="Shift Notes" icon="📝" open={open.notes} onToggle={() => toggle('notes')} isMobile={isMobile}>
             <textarea value={form.shift_notes} onChange={e => set('shift_notes', e.target.value)}
               placeholder="Any incidents, observations, or handover notes…"
-              style={{ ...s.input, height: 80, resize: 'vertical' }} />
+              style={{ ...inputStyle, height: 80, resize: 'vertical' }} />
           </Section>
 
           {/* ── Auto-Calculated Totals ── */}
@@ -298,14 +304,15 @@ export default function ManagerReports({ venues, showToast }) {
             </div>
           </div>
 
-          <button type="submit" disabled={saving} style={s.submitBtn}>
+          <button type="submit" disabled={saving}
+            style={{ ...s.submitBtn, fontSize: isMobile ? 16 : 15, padding: isMobile ? '16px 0' : '14px 0' }}>
             {saving ? 'Saving…' : 'Submit End of Day Report'}
           </button>
         </form>
       </div>
 
       {/* ── History column ─────────────────────────────────────────────── */}
-      <div style={s.histCol}>
+      <div style={isMobile ? { ...s.histCol, position: 'static' } : s.histCol}>
         <div style={s.histHeader}>
           <h2 style={s.histTitle}>Report History</h2>
           <div style={s.histFilters}>
@@ -322,26 +329,48 @@ export default function ManagerReports({ venues, showToast }) {
         <div style={s.histCard}>
           {loading ? <p style={s.empty}>Loading…</p> :
            reports.length === 0 ? <p style={s.empty}>No reports found.</p> : (
-            <table style={s.table}>
-              <thead>
-                <tr>{['Date','Venue','Cash','Card','Grand Total','Status',''].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
-              </thead>
-              <tbody>
+            isMobile ? (
+              <div>
                 {reports.map(r => (
-                  <tr key={r.id} style={s.tr}>
-                    <td style={s.td}>{fDate(r.date)}</td>
-                    <td style={s.td}><VenuePill name={r.venue_name} /></td>
-                    <td style={s.td}>£{f2(r.cash_sales)}</td>
-                    <td style={s.td}>£{f2(r.card_sales)}</td>
-                    <td style={{ ...s.td, fontWeight: 700, color: '#c1440e' }}>£{f2(r.grand_total || r.total_sales)}</td>
-                    <td style={s.td}><RecPill hasSquare={!!r.has_square} /></td>
-                    <td style={s.td}>
+                  <div key={r.id} style={{ padding: '12px 16px', borderBottom: '1px solid #f5ede0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontWeight: 700, fontSize: 14, color: '#2d1f14' }}>{fDate(r.date)}</span>
+                      <RecPill hasSquare={!!r.has_square} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <VenuePill name={r.venue_name} />
                       <button onClick={() => handleDelete(r.id)} style={s.delBtn} title="Delete">✕</button>
-                    </td>
-                  </tr>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, marginTop: 6 }}>
+                      <div style={{ fontSize: 11, color: '#7d6553' }}>Cash<br/><span style={{ fontSize: 13, fontWeight: 700, color: '#2d1f14' }}>£{f2(r.cash_sales)}</span></div>
+                      <div style={{ fontSize: 11, color: '#7d6553' }}>Card<br/><span style={{ fontSize: 13, fontWeight: 700, color: '#2d1f14' }}>£{f2(r.card_sales)}</span></div>
+                      <div style={{ fontSize: 11, color: '#7d6553' }}>Total<br/><span style={{ fontSize: 13, fontWeight: 700, color: '#c1440e' }}>£{f2(r.grand_total||r.total_sales)}</span></div>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            ) : (
+              <table style={s.table}>
+                <thead>
+                  <tr>{['Date','Venue','Cash','Card','Grand Total','Status',''].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {reports.map(r => (
+                    <tr key={r.id} style={s.tr}>
+                      <td style={s.td}>{fDate(r.date)}</td>
+                      <td style={s.td}><VenuePill name={r.venue_name} /></td>
+                      <td style={s.td}>£{f2(r.cash_sales)}</td>
+                      <td style={s.td}>£{f2(r.card_sales)}</td>
+                      <td style={{ ...s.td, fontWeight: 700, color: '#c1440e' }}>£{f2(r.grand_total || r.total_sales)}</td>
+                      <td style={s.td}><RecPill hasSquare={!!r.has_square} /></td>
+                      <td style={s.td}>
+                        <button onClick={() => handleDelete(r.id)} style={s.delBtn} title="Delete">✕</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
           )}
         </div>
       </div>
@@ -352,20 +381,25 @@ export default function ManagerReports({ venues, showToast }) {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function Section({ label, icon, open, onToggle, children }) {
+function Section({ label, icon, open, onToggle, children, isMobile }) {
   return (
     <div style={s.section}>
-      <button type="button" onClick={onToggle} style={s.sectionBtn}>
+      <button type="button" onClick={onToggle}
+        style={{ ...s.sectionBtn, padding: isMobile ? '12px 16px' : '13px 24px' }}>
         <span style={s.sectionIcon}>{icon}</span>
         <span style={s.sectionLabel}>{label}</span>
         <span style={{ ...s.sectionChevron, transform: open ? 'rotate(180deg)' : 'none' }}>▼</span>
       </button>
-      {open && <div style={s.sectionBody}>{children}</div>}
+      {open && (
+        <div style={{ ...s.sectionBody, padding: isMobile ? '4px 16px 16px' : '4px 24px 18px' }}>
+          {children}
+        </div>
+      )}
     </div>
   );
 }
 
-function NumField({ label, value, onChange, prefix, readOnly, badge, hint }) {
+function NumField({ label, value, onChange, prefix, readOnly, badge, hint, isMobile }) {
   return (
     <label style={s.fieldLabel}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -381,7 +415,7 @@ function NumField({ label, value, onChange, prefix, readOnly, badge, hint }) {
         <input type="number" step="0.01" min="0" placeholder="0.00"
           value={value} onChange={e => onChange(e.target.value)}
           readOnly={readOnly}
-          style={{ ...s.input, paddingLeft: prefix ? 28 : 10,
+          style={{ ...s.input, fontSize: isMobile ? 16 : 14, paddingLeft: prefix ? 28 : 10,
             ...(readOnly ? { background: '#f5f9f0', color: '#3d6018', fontWeight: 700, cursor: 'default', border: '1.5px solid #b5d08a' } : {}) }} />
       </div>
       {hint && <span style={{ fontSize: 10, color: '#5a7a30', marginTop: 1 }}>{hint}</span>}
@@ -389,12 +423,13 @@ function NumField({ label, value, onChange, prefix, readOnly, badge, hint }) {
   );
 }
 
-function DenomField({ label, value, onChange }) {
+function DenomField({ label, value, onChange, isMobile }) {
   return (
-    <div style={s.denomField}>
+    <div style={{ ...s.denomField, minWidth: isMobile ? 64 : 52 }}>
       <span style={s.denomBadge}>{label}</span>
       <input type="number" min="0" step="1" placeholder="0"
-        value={value} onChange={e => onChange(e.target.value)} style={s.denomInput} />
+        value={value} onChange={e => onChange(e.target.value)}
+        style={{ ...s.denomInput, width: isMobile ? 64 : 52, padding: isMobile ? '10px 6px' : '6px 4px', fontSize: isMobile ? 16 : 14 }} />
     </div>
   );
 }
@@ -432,24 +467,24 @@ function monthStart() { const d = new Date(); return `${d.getFullYear()}-${Strin
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = {
-  root:    { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' },
+  root:    { display: 'grid', gap: 24, alignItems: 'start' },
   formCol: { display: 'flex', flexDirection: 'column', gap: 0 },
   formCard:{ background: '#fff', borderRadius: 14, border: '1.5px solid #ede8e0', overflow: 'hidden', boxShadow: '0 2px 12px rgba(45,31,20,0.07)' },
   formHeader:{ padding: '20px 24px 16px', borderBottom: '1px solid #f5ede0', background: '#fefcf9' },
   formTitle: { fontSize: 17, fontWeight: 800, color: '#2d1f14' },
   formSub:   { fontSize: 12, color: '#a89078', marginTop: 3 },
 
-  basicRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, padding: '16px 24px' },
+  basicRow: { display: 'grid', gap: 14, padding: '16px 24px' },
 
   section:    { borderTop: '1px solid #f5ede0' },
-  sectionBtn: { width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '13px 24px',
+  sectionBtn: { width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                 background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer' },
   sectionIcon: { fontSize: 14 },
   sectionLabel:{ fontSize: 13, fontWeight: 700, color: '#2d1f14', flex: 1 },
   sectionChevron:{ fontSize: 9, color: '#a89078', transition: 'transform 0.15s' },
   sectionBody: { padding: '4px 24px 18px' },
 
-  grid2:   { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  grid2:   { display: 'grid', gap: 12 },
   hint:    { fontSize: 12, color: '#a89078', marginBottom: 10 },
   req:     { color: '#c1440e' },
 
@@ -475,7 +510,7 @@ const s = {
   finalCashRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
 
   discBlock: { display: 'flex', flexDirection: 'column', gap: 12 },
-  discRow:   { display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 10 },
+  discRow:   { display: 'grid', gap: 10 },
 
   totalsBox:   { margin: '0', padding: '16px 24px', background: '#fefcf9', borderTop: '1.5px solid #f5ede0' },
   totalsTitle: { fontSize: 13, fontWeight: 700, color: '#4a3728', marginBottom: 10 },
@@ -483,8 +518,8 @@ const s = {
   totalRow:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' },
   totalsDivider:{ height: 1, background: '#ede8e0', margin: '4px 0' },
 
-  submitBtn: { width: '100%', padding: '14px 0', background: '#c1440e', color: '#fff', border: 'none',
-               fontSize: 15, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.2px' },
+  submitBtn: { width: '100%', background: '#c1440e', color: '#fff', border: 'none',
+               fontWeight: 700, cursor: 'pointer', letterSpacing: '0.2px' },
 
   histCol:     { display: 'flex', flexDirection: 'column', gap: 0, position: 'sticky', top: 88 },
   histHeader:  { marginBottom: 12 },
