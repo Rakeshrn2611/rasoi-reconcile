@@ -1,27 +1,18 @@
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
-const multer  = require('multer');
 const path    = require('path');
-const fs      = require('fs');
 const XLSX    = require('xlsx');
-const pdfParse = require('pdf-parse');
 
 const db                   = require('./db');
 const { fetchSquareDay }   = require('./square');
-const { processManagerReport, parseWithClaude } = require('./ocr');
 const { reconcile }        = require('./reconcile');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
-// Upload dir — use volume path in production
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(UPLOAD_DIR));
 
 // Serve built React frontend in production
 if (process.env.NODE_ENV === 'production') {
@@ -32,19 +23,6 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename:    (req, file, cb) => cb(null, `report-${Date.now()}${path.extname(file.originalname)}`),
-});
-const upload = multer({
-  storage,
-  limits: { fileSize: 20 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const ok = ['.jpg','.jpeg','.png','.gif','.webp','.pdf','.csv','.xlsx','.xls'];
-    cb(null, ok.includes(path.extname(file.originalname).toLowerCase()));
-  },
-});
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -225,87 +203,60 @@ app.get('/api/reports', (req, res) => {
   res.json(db.prepare(q).all(...p));
 });
 
-app.post('/api/reports', upload.single('file'), async (req, res) => {
+app.post('/api/reports', async (req, res) => {
   try {
     const b = req.body;
     if (!b.venue_id || !b.date) return res.status(400).json({ error: 'venue_id and date are required' });
     const n = v => parseFloat(v) || 0;
     const t = v => (v || '').toString().trim();
 
-    // Structured end-of-day report (JSON body, no file)
-    if (!req.file) {
-      const notes_50  = n(b.notes_50);  const notes_20  = n(b.notes_20);
-      const notes_10  = n(b.notes_10);  const notes_5   = n(b.notes_5);
-      const coins_200 = n(b.coins_200); const coins_100 = n(b.coins_100);
-      const coins_50  = n(b.coins_50);  const coins_20  = n(b.coins_20);
-      const coins_10  = n(b.coins_10);  const coins_2   = n(b.coins_2);
-      const coins_1   = n(b.coins_1);
+    const notes_50  = n(b.notes_50);  const notes_20  = n(b.notes_20);
+    const notes_10  = n(b.notes_10);  const notes_5   = n(b.notes_5);
+    const coins_200 = n(b.coins_200); const coins_100 = n(b.coins_100);
+    const coins_50  = n(b.coins_50);  const coins_20  = n(b.coins_20);
+    const coins_10  = n(b.coins_10);  const coins_2   = n(b.coins_2);
+    const coins_1   = n(b.coins_1);
 
-      const physical_cash =
-        notes_50 * 50 + notes_20 * 20 + notes_10 * 10 + notes_5 * 5 +
-        coins_200 * 2 + coins_100 * 1 + coins_50 * 0.5 + coins_20 * 0.2 +
-        coins_10 * 0.1 + coins_2 * 0.02 + coins_1 * 0.01;
+    const physical_cash =
+      notes_50 * 50 + notes_20 * 20 + notes_10 * 10 + notes_5 * 5 +
+      coins_200 * 2 + coins_100 * 1 + coins_50 * 0.5 + coins_20 * 0.2 +
+      coins_10 * 0.1 + coins_2 * 0.02 + coins_1 * 0.01;
 
-      const cash_sales          = n(b.cash_sales);
-      const card_sales          = n(b.card_sales);
-      const deposits_used       = n(b.deposits_used);
-      const gift_cards_redeemed = n(b.gift_cards_redeemed);
-      const petty_cash          = n(b.petty_cash);
+    const cash_sales          = n(b.cash_sales);
+    const card_sales          = n(b.card_sales);
+    const deposits_used       = n(b.deposits_used);
+    const gift_cards_redeemed = n(b.gift_cards_redeemed);
+    const petty_cash          = n(b.petty_cash);
 
-      const grand_total = cash_sales + card_sales + deposits_used + gift_cards_redeemed + petty_cash;
-      const total_sales = cash_sales + card_sales;
+    const grand_total = cash_sales + card_sales + deposits_used + gift_cards_redeemed + petty_cash;
+    const total_sales = cash_sales + card_sales;
 
-      const result = db.prepare(`
-        INSERT INTO manager_reports
-          (venue_id, date, cash_sales, card_sales, total_sales, grand_total, notes, shift_notes,
-           deposits_used, gift_cards_redeemed,
-           notes_50, notes_20, notes_10, notes_5,
-           coins_200, coins_100, coins_50, coins_20, coins_10, coins_2, coins_1,
-           physical_cash, petty_cash, petty_cash_notes,
-           staff_discount, staff_discount_notes,
-           fnf_discount, fnf_discount_notes,
-           complimentary, complimentary_notes,
-           card_tips, cash_tips)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-      `).run(
-        b.venue_id, b.date, cash_sales, card_sales, total_sales, grand_total,
-        t(b.notes), t(b.shift_notes),
-        deposits_used, gift_cards_redeemed,
-        notes_50, notes_20, notes_10, notes_5,
-        coins_200, coins_100, coins_50, coins_20, coins_10, coins_2, coins_1,
-        physical_cash, petty_cash, t(b.petty_cash_notes),
-        n(b.staff_discount), t(b.staff_discount_notes),
-        n(b.fnf_discount), t(b.fnf_discount_notes),
-        n(b.complimentary), t(b.complimentary_notes),
-        n(b.card_tips), n(b.cash_tips)
-      );
-      return res.json({ id: result.lastInsertRowid, venue_id: b.venue_id, date: b.date,
-        cash_sales, card_sales, total_sales, grand_total, physical_cash, petty_cash });
-    }
-
-    // Legacy file-upload path (OCR / CSV / Excel)
-    let parsed = { cash_sales: n(b.cash_sales), card_sales: n(b.card_sales),
-                   total_sales: n(b.total_sales), notes: t(b.notes), image_path: null };
-    const ext = path.extname(req.file.originalname).toLowerCase();
-    parsed.image_path = `/uploads/${req.file.filename}`;
-    if (['.jpg','.jpeg','.png','.gif','.webp'].includes(ext)) {
-      const ocr = await processManagerReport(req.file.path);
-      parsed = { ...parsed, ...ocr, image_path: parsed.image_path };
-    } else if (ext === '.pdf') {
-      const pdf = await pdfParse(fs.readFileSync(req.file.path));
-      const ocr = await parseWithClaude(pdf.text);
-      parsed = { ...parsed, ...ocr, image_path: parsed.image_path };
-    } else if (['.csv','.xlsx','.xls'].includes(ext)) {
-      const wb = XLSX.readFile(req.file.path);
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      const ocr = await parseWithClaude(rows.map(r => r.join('\t')).join('\n'));
-      parsed = { ...parsed, ...ocr, image_path: parsed.image_path };
-    }
     const result = db.prepare(`
-      INSERT INTO manager_reports (venue_id,date,cash_sales,card_sales,total_sales,notes,image_path)
-      VALUES (?,?,?,?,?,?,?)`).run(b.venue_id, b.date, parsed.cash_sales, parsed.card_sales, parsed.total_sales, parsed.notes, parsed.image_path);
-    res.json({ id: result.lastInsertRowid, ...parsed, venue_id: b.venue_id, date: b.date });
+      INSERT INTO manager_reports
+        (venue_id, date, cash_sales, card_sales, total_sales, grand_total, notes, shift_notes,
+         deposits_used, gift_cards_redeemed,
+         notes_50, notes_20, notes_10, notes_5,
+         coins_200, coins_100, coins_50, coins_20, coins_10, coins_2, coins_1,
+         physical_cash, petty_cash, petty_cash_notes,
+         staff_discount, staff_discount_notes,
+         fnf_discount, fnf_discount_notes,
+         complimentary, complimentary_notes,
+         card_tips, cash_tips)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(
+      b.venue_id, b.date, cash_sales, card_sales, total_sales, grand_total,
+      t(b.notes), t(b.shift_notes),
+      deposits_used, gift_cards_redeemed,
+      notes_50, notes_20, notes_10, notes_5,
+      coins_200, coins_100, coins_50, coins_20, coins_10, coins_2, coins_1,
+      physical_cash, petty_cash, t(b.petty_cash_notes),
+      n(b.staff_discount), t(b.staff_discount_notes),
+      n(b.fnf_discount), t(b.fnf_discount_notes),
+      n(b.complimentary), t(b.complimentary_notes),
+      n(b.card_tips), n(b.cash_tips)
+    );
+    return res.json({ id: result.lastInsertRowid, venue_id: b.venue_id, date: b.date,
+      cash_sales, card_sales, total_sales, grand_total, physical_cash, petty_cash });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -381,6 +332,9 @@ app.get('/api/reconcile/summary', (req, res) => {
     SELECT mr.date, mr.venue_id, v.name as venue_name,
            mr.cash_sales, mr.card_sales, mr.total_sales, mr.grand_total,
            mr.physical_cash, mr.petty_cash, mr.notes,
+           mr.deposits_used, mr.gift_cards_redeemed, mr.card_tips, mr.cash_tips,
+           mr.staff_discount, mr.fnf_discount, mr.complimentary,
+           mr.petty_cash_notes, mr.shift_notes,
            sd.cash as sq_cash, sd.card as sq_card, sd.total as sq_total,
            sd.refunds, sd.discounts, sd.comps
     FROM manager_reports mr
@@ -454,6 +408,57 @@ app.patch('/api/square/notes', (req, res) => {
   if (!venue_id || !date) return res.status(400).json({ error: 'venue_id and date required' });
   db.prepare('UPDATE square_data SET recon_notes=? WHERE venue_id=? AND date=?').run(recon_notes || '', venue_id, date);
   res.json({ ok: true });
+});
+
+// ── Excel Export ──────────────────────────────────────────────────────────────
+
+app.get('/api/export/excel', (req, res) => {
+  const { venue_id, from, to } = req.query;
+  const now = new Date();
+  const f = from || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  const t = to   || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-31`;
+
+  let q = `
+    SELECT mr.date, v.name as venue,
+           mr.cash_sales, mr.petty_cash, mr.physical_cash,
+           mr.card_sales, mr.deposits_used, mr.gift_cards_redeemed,
+           mr.grand_total, mr.staff_discount, mr.fnf_discount, mr.complimentary,
+           mr.card_tips, mr.cash_tips, mr.shift_notes,
+           CASE WHEN sd.id IS NOT NULL THEN 'Reconciled' ELSE 'Pending' END as status,
+           COALESCE(sd.recon_notes,'') as recon_notes
+    FROM manager_reports mr
+    JOIN venues v ON v.id = mr.venue_id
+    LEFT JOIN square_data sd ON sd.venue_id=mr.venue_id AND sd.date=mr.date
+    WHERE mr.date>=? AND mr.date<=?`;
+  const p = [f, t];
+  if (venue_id) { q += ' AND mr.venue_id=?'; p.push(venue_id); }
+  q += ' ORDER BY mr.date DESC';
+
+  const rows = db.prepare(q).all(...p);
+
+  const wsData = [
+    ['Date','Venue','Cash Sales','Petty Cash','Physical Cash','Card Sales','Deposits Used',
+     'Gift Vouchers','Grand Total','Staff Discount','F&F Discount','Complimentary',
+     'Card Tips','Cash Tips','Total Tips','Status','Shift Notes','Recon Notes'],
+    ...rows.map(r => [
+      r.date, r.venue,
+      r.cash_sales||0, r.petty_cash||0, r.physical_cash||0,
+      r.card_sales||0, r.deposits_used||0, r.gift_cards_redeemed||0,
+      r.grand_total||0, r.staff_discount||0, r.fnf_discount||0, r.complimentary||0,
+      r.card_tips||0, r.cash_tips||0, (r.card_tips||0)+(r.cash_tips||0),
+      r.status, r.shift_notes||'', r.recon_notes||'',
+    ]),
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  XLSX.utils.book_append_sheet(wb, ws, 'Sales Report');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  const filename = `rasoi-sales-${f}-to-${t}.xlsx`;
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buf);
 });
 
 app.listen(PORT, () => console.log(`Reconcile API running on http://localhost:${PORT}`));
