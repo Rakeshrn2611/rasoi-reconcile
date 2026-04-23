@@ -134,7 +134,21 @@ export default function App() {
             )}
             <h1 style={s.pageTitle}>{pageTitle}</h1>
           </div>
-          <span style={s.topDate}>{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {!isMobile && (
+              <span style={s.topDate}>{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+            )}
+            {venues.length > 0 && (
+              <select
+                value={selectedVenue}
+                onChange={e => setSelectedVenue(e.target.value)}
+                style={s.venueSelect}
+              >
+                <option value="all">All Venues</option>
+                {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            )}
+          </div>
         </header>
 
         <div style={s.content}>
@@ -257,6 +271,10 @@ const s = {
   },
   pageTitle: { fontSize: 21, fontWeight: 800, color: '#1a0b04', letterSpacing: '-0.4px' },
   topDate: { fontSize: 13, color: '#a89078' },
+  venueSelect: {
+    padding: '6px 10px', border: '1.5px solid #ede8e0', borderRadius: 8,
+    fontSize: 13, color: '#2d1f14', background: '#fff', cursor: 'pointer', fontWeight: 500,
+  },
 
   content: { padding: 28, flex: 1 },
 
