@@ -56,6 +56,8 @@ export default function Reconcile({ venues, showToast }) {
   const [error, setError]           = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
   const [detailTab, setDetailTab]   = useState('refunds');
+  const [locking, setLocking]       = useState(false);
+  const [isLocked, setIsLocked]     = useState(false);
 
   // ── List data load ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -85,6 +87,7 @@ export default function Reconcile({ venues, showToast }) {
     setError('');
     setReconNotes('');
     setDetailTab('refunds');
+    setIsLocked(row.sq_locked === 1);
   }
 
   function goBack() {
@@ -124,6 +127,28 @@ export default function Reconcile({ venues, showToast }) {
     setSavingNotes(false);
   }
 
+  async function handleLock() {
+    setLocking(true);
+    try {
+      await api.lockRecon(selected.venue_id, selected.date);
+      setIsLocked(true);
+      showToast('Reconciliation locked');
+      loadList();
+    } catch (err) { showToast(err.message, 'error'); }
+    setLocking(false);
+  }
+
+  async function handleUnlock() {
+    setLocking(true);
+    try {
+      await api.unlockRecon(selected.venue_id, selected.date);
+      setIsLocked(false);
+      showToast('Reconciliation unlocked');
+      loadList();
+    } catch (err) { showToast(err.message, 'error'); }
+    setLocking(false);
+  }
+
   function handleExportDetailCSV() {
     if (!result) return;
     const r = result.reconciliation;
@@ -140,10 +165,11 @@ export default function Reconcile({ venues, showToast }) {
   const isOk = r?.status === 'ok';
   const selectedVenue = selected ? venues.find(v => v.id === selected.venue_id) : null;
 
-  const filteredRows = rows; // filtering already done server-side via params
+  const filteredRows = rows;
   const totalReports    = filteredRows.length;
-  const reconciledCount = filteredRows.filter(r => r.sq_total != null).length;
-  const pendingCount    = totalReports - reconciledCount;
+  const lockedCount     = filteredRows.filter(r => r.sq_total != null && r.sq_locked === 1).length;
+  const reconciledCount = filteredRows.filter(r => r.sq_total != null && r.sq_locked !== 1).length;
+  const pendingCount    = filteredRows.filter(r => r.sq_total == null).length;
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (view === 'list') {
@@ -168,10 +194,14 @@ export default function Reconcile({ venues, showToast }) {
         </div>
 
         {/* KPI cards */}
-        <div style={{ ...s.kpiGrid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)' }}>
+        <div style={{ ...s.kpiGrid, gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)' }}>
           <div style={s.kpiCard}>
-            <span style={{ fontSize: 11, color: '#a89078', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Reports</span>
+            <span style={{ fontSize: 11, color: '#a89078', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total</span>
             <span style={{ fontSize: 32, fontWeight: 700, color: '#2d1f14' }}>{totalReports}</span>
+          </div>
+          <div style={{ ...s.kpiCard, borderColor: '#93c5fd' }}>
+            <span style={{ fontSize: 11, color: '#1e40af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Locked</span>
+            <span style={{ fontSize: 32, fontWeight: 700, color: '#1e40af' }}>{lockedCount}</span>
           </div>
           <div style={{ ...s.kpiCard, borderColor: '#b5d08a' }}>
             <span style={{ fontSize: 11, color: '#5a7a30', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Reconciled</span>
@@ -230,7 +260,7 @@ export default function Reconcile({ venues, showToast }) {
           <span style={{ fontWeight: 700, color: '#2d1f14', fontSize: 15 }}>
             {fDate(selected?.date)} · {selected?.venue_name}
           </span>
-          <StatusPill reconciled={selected?.sq_total != null} />
+          <StatusPill reconciled={selected?.sq_total != null && !isLocked} locked={isLocked} />
         </div>
       </div>
 
@@ -368,19 +398,39 @@ export default function Reconcile({ venues, showToast }) {
           <div style={s.card}>
             <h3 style={s.cardTitle}>Actions</h3>
             {error && <p style={s.err}>{error}</p>}
+            {isLocked ? (
+              <div style={{ padding: '10px 14px', background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 8, fontSize: 13, color: '#1e40af', marginBottom: 4 }}>
+                🔒 This reconciliation is <strong>locked</strong>. Unlock to make changes.
+              </div>
+            ) : null}
             <div style={s.btnRow}>
               <button
                 onClick={handleFetchSquare}
-                disabled={fetching || !selectedVenue?.square_location_id}
+                disabled={fetching || loading || isLocked || !selectedVenue?.square_location_id}
                 style={s.btnSec}
-                title={!selectedVenue?.square_location_id ? 'No Square location ID set for this venue' : undefined}
+                title={isLocked ? 'Unlock to re-fetch' : !selectedVenue?.square_location_id ? 'No Square location ID set for this venue' : undefined}
               >
                 {fetching ? 'Fetching…' : 'Fetch from Square'}
               </button>
-              <button onClick={handleReconcile} disabled={loading} style={s.btn}>
+              <button onClick={handleReconcile} disabled={loading || isLocked} style={s.btn}>
                 {loading ? 'Loading…' : 'Reconcile'}
               </button>
             </div>
+            {/* Lock / Unlock */}
+            {selected?.sq_total != null && (
+              <div style={{ ...s.btnRow, borderTop: '1px solid #f5ede0', paddingTop: 12, marginTop: 4 }}>
+                {isLocked ? (
+                  <button onClick={handleUnlock} disabled={locking} style={{ ...s.btnSec, color: '#c88a2e', borderColor: '#e8c97a' }}>
+                    {locking ? '…' : '🔓 Unlock Reconciliation'}
+                  </button>
+                ) : (
+                  <button onClick={handleLock} disabled={locking} style={{ ...s.btnSec, color: '#1e40af', borderColor: '#93c5fd', background: '#eff6ff' }}>
+                    {locking ? '…' : '🔒 Lock & Approve'}
+                  </button>
+                )}
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: '#7d6553' }}>Reconciliation Notes</label>
               <textarea
@@ -484,14 +534,15 @@ export default function Reconcile({ venues, showToast }) {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function StatusPill({ reconciled }) {
+function StatusPill({ reconciled, locked }) {
+  if (locked) return (
+    <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: '#eff6ff', color: '#1e40af', border: '1px solid #93c5fd' }}>
+      Locked
+    </span>
+  );
   return (
     <span style={{
-      display: 'inline-block',
-      padding: '3px 10px',
-      borderRadius: 20,
-      fontSize: 11,
-      fontWeight: 700,
+      display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
       background: reconciled ? '#f0f5e8' : '#fdf5e0',
       color: reconciled ? '#4a6622' : '#7c5200',
       border: `1px solid ${reconciled ? '#b5d08a' : '#f0c97a'}`,
@@ -502,21 +553,17 @@ function StatusPill({ reconciled }) {
 }
 
 function ListRow({ row, isMobile, onView, tableIndex }) {
-  const reconciled = row.sq_total != null;
+  const locked     = row.sq_locked === 1;
+  const reconciled = row.sq_total != null && !locked;
   if (isMobile) {
     return (
       <div style={{
-        background: '#fff',
-        border: '1px solid #ede8e0',
-        borderRadius: 10,
-        padding: '14px 16px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
+        background: '#fff', border: '1px solid #ede8e0', borderRadius: 10,
+        padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontWeight: 700, color: '#2d1f14', fontSize: 14 }}>{fDate(row.date)}</span>
-          <StatusPill reconciled={reconciled} />
+          <StatusPill reconciled={reconciled} locked={locked} />
         </div>
         <span style={{ fontSize: 13, color: '#7d6553' }}>{row.venue_name}</span>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, fontSize: 12 }}>
@@ -535,7 +582,7 @@ function ListRow({ row, isMobile, onView, tableIndex }) {
       <td style={{ ...s.listTd, textAlign: 'right' }}>£{f2(row.cash_sales)}</td>
       <td style={{ ...s.listTd, textAlign: 'right' }}>£{f2(row.card_sales)}</td>
       <td style={{ ...s.listTd, textAlign: 'right', fontWeight: 700 }}>£{f2(row.grand_total || row.total_sales)}</td>
-      <td style={s.listTd}><StatusPill reconciled={reconciled} /></td>
+      <td style={s.listTd}><StatusPill reconciled={reconciled} locked={locked} /></td>
       <td style={s.listTd}><button onClick={onView} style={s.viewBtn}>View →</button></td>
     </tr>
   );
