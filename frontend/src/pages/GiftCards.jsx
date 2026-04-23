@@ -7,6 +7,8 @@ export default function GiftCards({ selectedVenue, venues, showToast }) {
   const [from, setFrom] = useState(monthStart());
   const [to, setTo]     = useState(today());
   const [rows, setRows] = useState([]);
+  const [mgrRows, setMgrRows] = useState([]);
+  const [tab, setTab]   = useState('square');
   const [loading, setLoading] = useState(true);
 
   const venueName = selectedVenue === 'all' ? 'All Venues' : venues.find(v => v.id === selectedVenue)?.name ?? '';
@@ -18,14 +20,17 @@ export default function GiftCards({ selectedVenue, venues, showToast }) {
     try {
       const p = { from, to };
       if (selectedVenue !== 'all') p.venue_id = selectedVenue;
-      setRows(await api.getGiftCards(p));
+      const [sq, mr] = await Promise.all([api.getGiftCards(p), api.getReports(p)]);
+      setRows(sq);
+      setMgrRows(mr.filter(r => (r.gift_cards_redeemed||0) > 0));
     } catch {}
     setLoading(false);
   }
 
-  const redemptions = rows.filter(r => r.activity_type === 'REDEEM');
-  const totalRedeem = redemptions.reduce((s, r) => s + (r.amount || 0), 0);
-  const totalAll    = rows.reduce((s, r) => s + (r.amount || 0), 0);
+  const redemptions  = rows.filter(r => r.activity_type === 'REDEEM');
+  const totalRedeem  = redemptions.reduce((s, r) => s + (r.amount || 0), 0);
+  const totalAll     = rows.reduce((s, r) => s + (r.amount || 0), 0);
+  const totalMgrGifts = mgrRows.reduce((s, r) => s + (r.gift_cards_redeemed||0), 0);
 
   function doExport() {
     downloadCSV('gift-cards.csv', rows.map(r => ({
@@ -37,14 +42,42 @@ export default function GiftCards({ selectedVenue, venues, showToast }) {
   return (
     <div style={s.root}>
       <ContextBar venueName={venueName} from={from} to={to} setFrom={setFrom} setTo={setTo} onExport={doExport} color="#2563eb" bg="#eff6ff" />
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3,1fr)', gap: 12, marginBottom: 20 }}>
-        <KPI label="Total Redemptions" value={totalRedeem} color="#2563eb" accent />
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
+        <KPI label="Square Redemptions" value={totalRedeem} color="#2563eb" accent />
         <KPI label="Redemption Count" count={redemptions.length} color="#2563eb" />
-        <KPI label="All Activity Value" value={totalAll} color="#5a7a30" />
+        <KPI label="Manager Reported" value={totalMgrGifts} color="#7c3d8c" />
+        <KPI label="Combined Total" value={totalAll + totalMgrGifts} color="#c1440e" />
       </div>
       <div style={s.tableCard}>
-        {loading ? <p style={s.empty}>Loading…</p>
-         : !rows.length ? <p style={s.empty}>No gift voucher activity for this period.</p>
+        <div style={{ display: 'flex', borderBottom: '1px solid #f5ede0', padding: '0 4px' }}>
+          <button onClick={() => setTab('square')} style={{ padding:'10px 16px', border:'none', background:'none', fontSize:13, cursor:'pointer', color: tab==='square'?'#2d1f14':'#7d6553', fontWeight: tab==='square'?700:400, borderBottom: tab==='square'?'2px solid #c1440e':'2px solid transparent' }}>
+            Square Activity ({rows.length})
+          </button>
+          <button onClick={() => setTab('manager')} style={{ padding:'10px 16px', border:'none', background:'none', fontSize:13, cursor:'pointer', color: tab==='manager'?'#2d1f14':'#7d6553', fontWeight: tab==='manager'?700:400, borderBottom: tab==='manager'?'2px solid #c1440e':'2px solid transparent' }}>
+            Manager Reported ({mgrRows.length})
+          </button>
+        </div>
+        {tab === 'manager' ? (
+          !mgrRows.length ? <p style={s.empty}>No manager-reported gift vouchers this period.</p>
+          : isMobile ? mgrRows.map((r,i) => (
+              <MobileCard key={i} title={fDate(r.date)} subtitle={r.venue_name} items={[
+                { label: 'Gift Vouchers Redeemed', value: `£${f2(r.gift_cards_redeemed)}`, strong: true, color: '#7c3d8c' },
+              ]} />
+            ))
+          : (
+            <table style={s.table}>
+              <thead><tr>{['Date','Venue','Gift Vouchers Redeemed'].map(h=><th key={h} style={s.th}>{h}</th>)}</tr></thead>
+              <tbody>{mgrRows.map((r,i)=>(
+                <tr key={i} style={{background:i%2===0?'#fff':'#fefcf9'}}>
+                  <td style={s.td}>{fDate(r.date)}</td>
+                  <td style={s.td}><VenuePill name={r.venue_name}/></td>
+                  <td style={{...s.td,fontWeight:700,color:'#7c3d8c'}}>£{f2(r.gift_cards_redeemed)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          )
+        ) : (
+        !rows.length ? <p style={s.empty}>No gift voucher activity for this period.</p>
          : isMobile ? rows.map((r,i) => (
              <MobileCard key={i} title={fDate(r.date)} subtitle={r.venue_name} items={[
                { label: 'Card',   value: `···· ${r.gift_card_last4}` },
@@ -66,7 +99,7 @@ export default function GiftCards({ selectedVenue, venues, showToast }) {
                </tr>
              ))}</tbody>
            </table>
-         )}
+         ))}
       </div>
     </div>
   );
