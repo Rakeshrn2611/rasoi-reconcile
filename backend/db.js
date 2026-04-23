@@ -125,6 +125,9 @@ const migrations = [
   `ALTER TABLE manager_reports ADD COLUMN shift_notes TEXT DEFAULT ''`,
   `ALTER TABLE manager_reports ADD COLUMN grand_total REAL DEFAULT 0`,
   `ALTER TABLE square_data ADD COLUMN recon_notes TEXT DEFAULT ''`,
+  `ALTER TABLE square_data ADD COLUMN locked INTEGER DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN manager_refunds REAL DEFAULT 0`,
+  `ALTER TABLE manager_reports ADD COLUMN manager_refund_notes TEXT DEFAULT ''`,
 ];
 for (const sql of migrations) { try { db.exec(sql); } catch {} }
 
