@@ -4,10 +4,11 @@ import { useIsMobile } from '../hooks/useIsMobile.js';
 
 export default function Discounts({ selectedVenue, venues, showToast }) {
   const isMobile = useIsMobile();
-  const [from, setFrom] = useState(monthStart());
-  const [to, setTo]     = useState(today());
+  const [from, setFrom]           = useState(monthStart());
+  const [to, setTo]               = useState(today());
   const [discounts, setDiscounts] = useState([]);
   const [comps,     setComps]     = useState([]);
+  const [mgr,       setMgr]       = useState([]);
   const [loading, setLoading]     = useState(true);
   const [tab, setTab]             = useState('discounts');
 
@@ -20,14 +21,16 @@ export default function Discounts({ selectedVenue, venues, showToast }) {
     try {
       const p = { from, to };
       if (selectedVenue !== 'all') p.venue_id = selectedVenue;
-      const [d, c] = await Promise.all([api.getDiscounts(p), api.getComps(p)]);
+      const [d, c, m] = await Promise.all([api.getDiscounts(p), api.getComps(p), api.getReports(p)]);
       setDiscounts(d); setComps(c);
+      setMgr(m.filter(r => (r.staff_discount||0)+(r.fnf_discount||0)+(r.complimentary||0) > 0));
     } catch {}
     setLoading(false);
   }
 
   const totalDisc = discounts.reduce((s, r) => s + (r.amount || 0), 0);
   const totalComp = comps.reduce((s, r) => s + (r.amount || 0), 0);
+  const totalMgr  = mgr.reduce((s, r) => s + (r.staff_discount||0)+(r.fnf_discount||0)+(r.complimentary||0), 0);
 
   function doExport() {
     if (tab === 'discounts') {
@@ -44,26 +47,59 @@ export default function Discounts({ selectedVenue, venues, showToast }) {
     }
   }
 
-  const activeRows = tab === 'discounts' ? discounts : comps;
+  const activeRows = tab === 'discounts' ? discounts : tab === 'comps' ? comps : mgr;
 
   return (
     <div style={s.root}>
       <ContextBar venueName={venueName} from={from} to={to} setFrom={setFrom} setTo={setTo} onExport={doExport} color="#7c5c2e" bg="#fdf5e7" />
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3,1fr)', gap: 12, marginBottom: 20 }}>
-        <KPI label="Total Discounts (Square)" value={totalDisc} color="#7c5c2e" accent />
-        <KPI label="Total Comps (Square)" value={totalComp} color="#c88a2e" />
-        <KPI label="Combined Total" value={totalDisc + totalComp} color="#c1440e" />
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
+        <KPI label="Square Discounts" value={totalDisc} color="#7c5c2e" accent />
+        <KPI label="Square Comps" value={totalComp} color="#c88a2e" />
+        <KPI label="Manager Tracked" value={totalMgr} color="#c1440e" />
+        <KPI label="Combined Total" value={totalDisc + totalComp + totalMgr} color="#2d1f14" />
       </div>
       <div style={s.tableCard}>
         <div style={s.tabRow}>
           <button onClick={() => setTab('discounts')} style={{ ...s.tab, ...(tab === 'discounts' ? s.tabActive : {}) }}>
-            Discounts ({discounts.length})
+            Square Discounts ({discounts.length})
           </button>
           <button onClick={() => setTab('comps')} style={{ ...s.tab, ...(tab === 'comps' ? s.tabActive : {}) }}>
-            Complimentary ({comps.length})
+            Square Comps ({comps.length})
+          </button>
+          <button onClick={() => setTab('manager')} style={{ ...s.tab, ...(tab === 'manager' ? s.tabActive : {}) }}>
+            Manager Tracked ({mgr.length})
           </button>
         </div>
         {loading ? <p style={s.empty}>Loading…</p>
+         : tab === 'manager' ? (
+           !mgr.length ? <p style={s.empty}>No manager-tracked discounts this period.</p>
+           : isMobile ? mgr.map((r, i) => (
+               <MobileCard key={i} title={fDate(r.date)} subtitle={r.venue_name} items={[
+                 { label: 'Staff Discount', value: `£${f2(r.staff_discount)}`, color: '#7c5c2e' },
+                 { label: 'F&F Discount',  value: `£${f2(r.fnf_discount)}`,   color: '#c88a2e' },
+                 { label: 'Complimentary', value: `£${f2(r.complimentary)}`,   color: '#c1440e' },
+                 { label: 'Total',         value: `£${f2((r.staff_discount||0)+(r.fnf_discount||0)+(r.complimentary||0))}`, strong: true, color: '#2d1f14' },
+               ]} />
+             ))
+           : (
+             <table style={s.table}>
+               <thead><tr>{['Date','Venue','Staff Discount','Notes','F&F Discount','Notes','Complimentary','Notes','Total'].map(h=><th key={h} style={s.th}>{h}</th>)}</tr></thead>
+               <tbody>{mgr.map((r,i)=>(
+                 <tr key={i} style={{background:i%2===0?'#fff':'#fefcf9'}}>
+                   <td style={s.td}>{fDate(r.date)}</td>
+                   <td style={s.td}><VenuePill name={r.venue_name}/></td>
+                   <td style={{...s.td,fontWeight:600,color:'#7c5c2e'}}>£{f2(r.staff_discount)}</td>
+                   <td style={{...s.td,fontSize:11,color:'#a89078'}}>{r.staff_discount_notes||'—'}</td>
+                   <td style={{...s.td,fontWeight:600,color:'#c88a2e'}}>£{f2(r.fnf_discount)}</td>
+                   <td style={{...s.td,fontSize:11,color:'#a89078'}}>{r.fnf_discount_notes||'—'}</td>
+                   <td style={{...s.td,fontWeight:600,color:'#c1440e'}}>£{f2(r.complimentary)}</td>
+                   <td style={{...s.td,fontSize:11,color:'#a89078'}}>{r.complimentary_notes||'—'}</td>
+                   <td style={{...s.td,fontWeight:800,color:'#2d1f14'}}>£{f2((r.staff_discount||0)+(r.fnf_discount||0)+(r.complimentary||0))}</td>
+                 </tr>
+               ))}</tbody>
+             </table>
+           )
+         )
          : !activeRows.length ? <p style={s.empty}>No data for this period.</p>
          : isMobile ? activeRows.map((r, i) => (
              tab === 'discounts'
