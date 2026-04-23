@@ -26,4 +26,14 @@ export const api = {
 
   reconcile: (venue_id, date) => request(`/reconcile?${new URLSearchParams({ venue_id, date })}`),
   getSummary: (params = {}) => request(`/reconcile/summary?${new URLSearchParams(params)}`),
+
+  getRefunds:   (params = {}) => request(`/refunds?${new URLSearchParams(params)}`),
+  getComps:     (params = {}) => request(`/comps?${new URLSearchParams(params)}`),
+  getDiscounts: (params = {}) => request(`/discounts?${new URLSearchParams(params)}`),
+  getGiftCards: (params = {}) => request(`/gift-cards?${new URLSearchParams(params)}`),
+  saveReconNotes: (venue_id, date, notes) => request('/square/notes', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ venue_id, date, recon_notes: notes }),
+  }),
 };
