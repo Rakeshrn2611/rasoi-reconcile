@@ -5,7 +5,7 @@ const CARD_META = {
   cash_sales:    { label: 'Cash Sales',    color: '#5a7a30', bg: '#f0f5e8', icon: '£',  nav: 'cash' },
   card_sales:    { label: 'Card Sales',    color: '#2563eb', bg: '#eff6ff', icon: '▤',  nav: 'card' },
   total_sales:   { label: 'Total Sales',   color: '#c1440e', bg: '#fef3ee', icon: '∑',  nav: 'cash' },
-  cash_variance: { label: 'Discrepancies', color: '#c1440e', bg: '#fef3ee', icon: '△',  nav: 'cash' },
+  cash_variance: { label: 'Discrepancies', color: '#c1440e', bg: '#fef3ee', icon: '△',  nav: 'discrepancies' },
 };
 
 const DETAIL_META = {
