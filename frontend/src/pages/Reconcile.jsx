@@ -438,27 +438,10 @@ export default function Reconcile({ venues, showToast, selectedVenue: globalVenu
                     </div>
                   )}
 
-                  {/* Entry form */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: '1px solid #f5ede0', paddingTop: 10, marginTop: 4 }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: '#7d6553' }}>Enter Actual Cash Held</label>
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={actualCash}
-                      onChange={e => setActualCash(e.target.value)}
-                      placeholder="0.00"
-                      style={s.input}
-                    />
-                    <label style={{ fontSize: 12, fontWeight: 600, color: '#7d6553' }}>Notes</label>
-                    <input
-                      type="text"
-                      value={actualCashNotes}
-                      onChange={e => setActualCashNotes(e.target.value)}
-                      placeholder="Any notes about the cash count…"
-                      style={s.input}
-                    />
-                    <button onClick={handleSaveCash} disabled={savingCash || isLocked} style={s.btn}>
-                      {savingCash ? 'Saving…' : 'Save Actual Cash'}
-                    </button>
+                  {/* Source note */}
+                  <div style={{ padding: '8px 10px', background: '#fafaf8', border: '1px solid #ede8e0', borderRadius: 7, fontSize: 12, color: '#7d6553', marginTop: 4 }}>
+                    ℹ Actual Cash Held is entered via the <strong>Cash Sales</strong> page (Dashboard → Cash Sales).
+                    {actual == null && <span style={{ color: '#c88a2e', marginLeft: 4 }}>Not entered yet.</span>}
                   </div>
                 </>
               );
