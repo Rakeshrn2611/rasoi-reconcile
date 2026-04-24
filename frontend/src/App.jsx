@@ -31,7 +31,7 @@ const ALL_PAGES = {
   discrepancies:  { label: 'Discrepancies' },
   history:        { label: 'History' },
   settings:       { label: 'Settings' },
-  cash:           { label: 'Cash Sales',    parent: 'dashboard' },
+  cash:           { label: 'Total Sales',   parent: 'dashboard' },
   card:           { label: 'Card Sales',    parent: 'dashboard' },
   refunds:        { label: 'Refunds',       parent: 'dashboard' },
   discounts:      { label: 'Discounts',     parent: 'dashboard' },
