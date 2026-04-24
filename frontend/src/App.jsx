@@ -13,6 +13,7 @@ import Discounts from './pages/Discounts.jsx';
 import GiftCards from './pages/GiftCards.jsx';
 import DiscrepanciesPage from './pages/Discrepancies.jsx';
 import Tips from './pages/Tips.jsx';
+import TotalSales from './pages/TotalSales.jsx';
 
 const NAV = [
   { id: 'dashboard',      label: 'Dashboard',       icon: IconGrid },
@@ -31,7 +32,8 @@ const ALL_PAGES = {
   discrepancies:  { label: 'Discrepancies' },
   history:        { label: 'History' },
   settings:       { label: 'Settings' },
-  cash:           { label: 'Total Sales',   parent: 'dashboard' },
+  cash:           { label: 'Cash Sales',    parent: 'dashboard' },
+  total_sales:    { label: 'Total Sales',   parent: 'dashboard' },
   card:           { label: 'Card Sales',    parent: 'dashboard' },
   refunds:        { label: 'Refunds',       parent: 'dashboard' },
   discounts:      { label: 'Discounts',     parent: 'dashboard' },
@@ -169,6 +171,7 @@ export default function App() {
           {page === 'discounts'  && <Discounts      {...pageProps} />}
           {page === 'gift_cards'    && <GiftCards        {...pageProps} />}
           {page === 'tips'          && <Tips             {...pageProps} />}
+          {page === 'total_sales'   && <TotalSales       {...pageProps} />}
           {page === 'discrepancies' && <DiscrepanciesPage {...pageProps} />}
         </div>
       </div>
