@@ -34,7 +34,7 @@ function exportListCSV(rows) {
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
-export default function Reconcile({ venues, showToast }) {
+export default function Reconcile({ venues, showToast, selectedVenue: globalVenueFilter }) {
   const isMobile = useIsMobile();
 
   // View state
@@ -58,6 +58,11 @@ export default function Reconcile({ venues, showToast }) {
   const [detailTab, setDetailTab]   = useState('refunds');
   const [locking, setLocking]       = useState(false);
   const [isLocked, setIsLocked]     = useState(false);
+
+  // Cash verification state
+  const [actualCash,      setActualCash]      = useState('');
+  const [actualCashNotes, setActualCashNotes] = useState('');
+  const [savingCash,      setSavingCash]      = useState(false);
 
   // ── List data load ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -88,6 +93,8 @@ export default function Reconcile({ venues, showToast }) {
     setReconNotes('');
     setDetailTab('refunds');
     setIsLocked(row.sq_locked === 1);
+    setActualCash(row.actual_cash_held != null ? String(row.actual_cash_held) : '');
+    setActualCashNotes(row.actual_cash_notes || '');
   }
 
   function goBack() {
@@ -136,6 +143,17 @@ export default function Reconcile({ venues, showToast }) {
       loadList();
     } catch (err) { showToast(err.message, 'error'); }
     setLocking(false);
+  }
+
+  async function handleSaveCash() {
+    if (actualCash === '') return showToast('Enter actual cash amount', 'error');
+    setSavingCash(true);
+    try {
+      await api.setActualCash(selected.id, parseFloat(actualCash), actualCashNotes);
+      showToast('Actual cash saved');
+      setSelected(prev => ({ ...prev, actual_cash_held: parseFloat(actualCash), actual_cash_notes: actualCashNotes }));
+    } catch (err) { showToast(err.message, 'error'); }
+    setSavingCash(false);
   }
 
   async function handleUnlock() {
@@ -337,6 +355,74 @@ export default function Reconcile({ venues, showToast }) {
               </div>
             </div>
           )}
+          {/* Cash Verification card */}
+          <div style={s.card}>
+            <h3 style={s.cardTitle}>Cash Verification</h3>
+            {(() => {
+              const net      = (selected?.physical_cash || 0) - (selected?.petty_cash || 0);
+              const actual   = selected?.actual_cash_held != null ? Number(selected.actual_cash_held) : null;
+              const cashDisc = actual != null ? actual - net : null;
+              const isMajor  = cashDisc != null && Math.abs(cashDisc) > 5;
+              const discColor = cashDisc == null ? '#a89078' : Math.abs(cashDisc) < 0.01 ? '#4a6622' : isMajor ? '#991b1b' : '#7c5200';
+              return (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f9f4ef' }}>
+                      <span style={{ fontSize: 13, color: '#7d6553' }}>Manager Cash (physical)</span>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>£{f2(selected?.physical_cash)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f9f4ef' }}>
+                      <span style={{ fontSize: 13, color: '#7d6553' }}>(−) Petty Cash</span>
+                      <span style={{ fontSize: 13, color: '#c88a2e', fontWeight: 600 }}>£{f2(selected?.petty_cash)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #ede8e0', fontWeight: 700 }}>
+                      <span style={{ fontSize: 13, color: '#2d1f14' }}>Net Manager Cash</span>
+                      <span style={{ fontSize: 13, color: '#2563eb' }}>£{f2(net)}</span>
+                    </div>
+                    {actual != null && (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f9f4ef', fontWeight: 700 }}>
+                          <span style={{ fontSize: 13, color: '#2d1f14' }}>Actual Cash Held</span>
+                          <span style={{ fontSize: 13 }}>£{f2(actual)}</span>
+                        </div>
+                        <div style={{
+                          display: 'flex', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 7, marginTop: 6,
+                          background: Math.abs(cashDisc) < 0.01 ? '#f0f5e8' : isMajor ? '#fef2f2' : '#fffbeb',
+                          border: `1px solid ${Math.abs(cashDisc) < 0.01 ? '#b5d08a' : isMajor ? '#fca5a5' : '#f0c97a'}`,
+                        }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: discColor }}>Cash Discrepancy</span>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: discColor }}>
+                            {Math.abs(cashDisc) < 0.01 ? '✓ Match' : cashDisc > 0 ? `+£${f2(cashDisc)}` : `−£${f2(Math.abs(cashDisc))}`}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: '1px solid #f5ede0', paddingTop: 10, marginTop: 4 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: '#7d6553' }}>Actual Cash Received / Held</label>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={actualCash}
+                      onChange={e => setActualCash(e.target.value)}
+                      placeholder="0.00"
+                      style={s.input}
+                    />
+                    <label style={{ fontSize: 12, fontWeight: 600, color: '#7d6553' }}>Notes</label>
+                    <input
+                      type="text"
+                      value={actualCashNotes}
+                      onChange={e => setActualCashNotes(e.target.value)}
+                      placeholder="Any notes about the cash count…"
+                      style={s.input}
+                    />
+                    <button onClick={handleSaveCash} disabled={savingCash || isLocked} style={s.btn}>
+                      {savingCash ? 'Saving…' : 'Save Actual Cash'}
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
         </div>
 
         {/* RIGHT panel */}
