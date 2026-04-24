@@ -410,15 +410,17 @@ app.get('/api/reconcile/summary', (req, res) => {
     SELECT mr.id, mr.date, mr.venue_id, v.name as venue_name,
            mr.cash_sales, mr.card_sales, mr.total_sales, mr.grand_total,
            mr.physical_cash, mr.petty_cash, mr.notes,
-           mr.deposits_used, mr.gift_cards_redeemed, mr.card_tips, mr.cash_tips,
+           mr.deposits_used, mr.gift_cards_redeemed, mr.card_tips, mr.cash_tips, mr.cash_tips_final,
            mr.staff_discount, mr.fnf_discount, mr.complimentary,
            mr.petty_cash_notes, mr.shift_notes,
            mr.notes_50, mr.notes_20, mr.notes_10, mr.notes_5,
            mr.coins_200, mr.coins_100, mr.coins_50, mr.coins_20, mr.coins_10, mr.coins_2, mr.coins_1,
            mr.manager_refunds, mr.manager_refund_notes,
+           mr.actual_cash_held, mr.actual_cash_notes,
            sd.cash as sq_cash, sd.card as sq_card, sd.total as sq_total,
            sd.refunds, sd.discounts, sd.comps, sd.recon_notes,
-           COALESCE(sd.locked, 0) as sq_locked
+           COALESCE(sd.locked, 0) as sq_locked,
+           COALESCE(sd.card_tips, 0) as sq_card_tips
     FROM manager_reports mr
     JOIN venues v ON v.id=mr.venue_id
     ${joinType}
@@ -561,6 +563,152 @@ app.get('/api/export/excel', (req, res) => {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(buf);
+});
+
+// ── Actual Cash Held ──────────────────────────────────────────────────────────
+
+app.patch('/api/reports/:id/actual-cash', (req, res) => {
+  const { actual_cash_held, actual_cash_notes } = req.body;
+  const val = actual_cash_held != null && actual_cash_held !== '' ? parseFloat(actual_cash_held) : null;
+  db.prepare('UPDATE manager_reports SET actual_cash_held=?, actual_cash_notes=? WHERE id=?')
+    .run(val, actual_cash_notes || '', req.params.id);
+  res.json({ ok: true });
+});
+
+// ── Discrepancies ─────────────────────────────────────────────────────────────
+
+app.get('/api/discrepancies', (req, res) => {
+  const { venue_id, from, to, category, status } = req.query;
+  const now = new Date();
+  const f = from || `${now.getFullYear() - 1}-01-01`;
+  const t = to   || now.toISOString().slice(0, 10);
+
+  let q = `
+    SELECT mr.id, mr.date, mr.venue_id, v.name as venue_name,
+      mr.cash_sales, mr.card_sales, mr.grand_total,
+      mr.actual_cash_held, mr.petty_cash, mr.manager_refunds,
+      sd.cash as sq_cash, sd.card as sq_card, sd.total as sq_total,
+      sd.refunds as sq_refunds
+    FROM manager_reports mr
+    JOIN venues v ON v.id=mr.venue_id
+    LEFT JOIN square_data sd ON sd.venue_id=mr.venue_id AND sd.date=mr.date
+    WHERE mr.date>=? AND mr.date<=?
+      AND (sd.total IS NOT NULL OR mr.actual_cash_held IS NOT NULL)`;
+  const p = [f, t];
+  if (venue_id) { q += ' AND mr.venue_id=?'; p.push(venue_id); }
+  q += ' ORDER BY mr.date DESC LIMIT 500';
+
+  const rows = db.prepare(q).all(...p);
+
+  // Load status overrides
+  const statusMap = {};
+  if (rows.length) {
+    const sRows = db.prepare(`SELECT * FROM discrepancy_notes WHERE date>=? AND date<=?`).all(f, t);
+    for (const s of sRows) statusMap[`${s.venue_id}:${s.date}:${s.category}`] = s;
+  }
+
+  const THRESHOLD = 0.01;
+  const discrepancies = [];
+
+  for (const row of rows) {
+    const base = { date: row.date, venue_id: row.venue_id, venue_name: row.venue_name };
+    const getStatus = (cat) => {
+      const s = statusMap[`${row.venue_id}:${row.date}:${cat}`];
+      return { status: s?.status || 'unresolved', notes: s?.notes || '' };
+    };
+    const push = (cat, expected, actual) => {
+      const diff = actual - expected;
+      if (Math.abs(diff) <= THRESHOLD) return;
+      const st = getStatus(cat);
+      discrepancies.push({
+        ...base, category: cat,
+        expected, actual, difference: diff, abs_difference: Math.abs(diff),
+        severity: Math.abs(diff) > 5 ? 'major' : 'minor',
+        status: st.status, notes: st.notes,
+      });
+    };
+
+    // 1. Cash: Manager vs Actual Cash Held
+    if (row.actual_cash_held != null)
+      push('Cash — Mgr vs Actual', row.actual_cash_held, row.cash_sales);
+
+    // 2. Total Cash (actual/mgr + petty) vs Square Cash
+    if (row.sq_cash != null) {
+      const adminCash = (row.actual_cash_held ?? row.cash_sales) + (row.petty_cash || 0);
+      push('Cash vs Square', row.sq_cash, adminCash);
+    }
+
+    // 3. Card vs Square
+    if (row.sq_card != null)
+      push('Card vs Square', row.sq_card, row.card_sales);
+
+    // 4. Total vs Square
+    if (row.sq_total != null)
+      push('Total vs Square', row.sq_total, row.grand_total);
+
+    // 5. Square Refunds flagged for review
+    if ((row.sq_refunds || 0) > 0) {
+      const st = getStatus('Refunds');
+      discrepancies.push({
+        ...base, category: 'Refunds',
+        expected: 0, actual: row.sq_refunds, difference: row.sq_refunds,
+        abs_difference: row.sq_refunds,
+        severity: row.sq_refunds > 20 ? 'major' : 'minor',
+        status: st.status, notes: st.notes,
+      });
+    }
+  }
+
+  let result = discrepancies;
+  if (category && category !== 'all') result = result.filter(d => d.category === category);
+  if (status   && status !== 'all')   result = result.filter(d => d.status === status);
+  res.json(result);
+});
+
+// ── Tips ──────────────────────────────────────────────────────────────────────
+
+app.get('/api/tips', (req, res) => {
+  const { venue_id, from, to } = req.query;
+  const now = new Date();
+  const f = from || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  const t = to   || now.toISOString().slice(0, 10);
+  let q = `
+    SELECT mr.id, mr.date, mr.venue_id, v.name as venue_name,
+           mr.card_tips, mr.cash_tips, mr.cash_tips_final,
+           COALESCE(sd.card_tips, 0) as sq_card_tips
+    FROM manager_reports mr
+    JOIN venues v ON v.id=mr.venue_id
+    LEFT JOIN square_data sd ON sd.venue_id=mr.venue_id AND sd.date=mr.date
+    WHERE mr.date>=? AND mr.date<=?`;
+  const p = [f, t];
+  if (venue_id) { q += ' AND mr.venue_id=?'; p.push(venue_id); }
+  q += ' ORDER BY mr.date DESC LIMIT 500';
+  res.json(db.prepare(q).all(...p));
+});
+
+app.patch('/api/reports/:id/cash-tips-final', (req, res) => {
+  const { cash_tips_final } = req.body;
+  const val = cash_tips_final != null && cash_tips_final !== '' ? parseFloat(cash_tips_final) : null;
+  db.prepare('UPDATE manager_reports SET cash_tips_final=? WHERE id=?').run(val, req.params.id);
+  res.json({ ok: true });
+});
+
+app.patch('/api/discrepancies/status', (req, res) => {
+  const { venue_id, date, category, status, notes } = req.body;
+  if (!venue_id || !date || !category) return res.status(400).json({ error: 'venue_id, date, category required' });
+  try {
+    db.prepare(`INSERT INTO discrepancy_notes (venue_id, date, category, status, notes, updated_at)
+      VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)
+      ON CONFLICT(venue_id, date, category) DO UPDATE SET
+        status=excluded.status, notes=excluded.notes, updated_at=excluded.updated_at`)
+      .run(venue_id, date, category, status || 'unresolved', notes || '');
+  } catch {
+    // Fallback if ON CONFLICT not supported
+    const ex = db.prepare('SELECT id FROM discrepancy_notes WHERE venue_id=? AND date=? AND category=?').get(venue_id, date, category);
+    if (ex) db.prepare('UPDATE discrepancy_notes SET status=?,notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(status||'unresolved',notes||'',ex.id);
+    else db.prepare('INSERT INTO discrepancy_notes(venue_id,date,category,status,notes) VALUES(?,?,?,?,?)').run(venue_id,date,category,status||'unresolved',notes||'');
+  }
+  res.json({ ok: true });
 });
 
 app.listen(PORT, () => console.log(`Reconcile API running on http://localhost:${PORT}`));
