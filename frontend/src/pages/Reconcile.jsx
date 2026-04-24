@@ -359,47 +359,88 @@ export default function Reconcile({ venues, showToast, selectedVenue: globalVenu
           <div style={s.card}>
             <h3 style={s.cardTitle}>Cash Verification</h3>
             {(() => {
-              const total    = (selected?.physical_cash || 0) + (selected?.petty_cash || 0);
-              const actual   = selected?.actual_cash_held != null ? Number(selected.actual_cash_held) : null;
-              const cashDisc = actual != null ? actual - total : null;
-              const isMajor  = cashDisc != null && Math.abs(cashDisc) > 5;
-              const discColor = cashDisc == null ? '#a89078' : Math.abs(cashDisc) < 0.01 ? '#4a6622' : isMajor ? '#991b1b' : '#7c5200';
+              const physical    = selected?.physical_cash || 0;
+              const petty       = selected?.petty_cash    || 0;
+              const expected    = physical + petty;                                             // Manager's expected total (incl. petty)
+              const actual      = selected?.actual_cash_held != null ? Number(selected.actual_cash_held) : null;
+              const actualTotal = actual != null ? actual + petty : null;                       // Add petty back to actual for comparison
+              const sqCash      = result?.square?.cash ?? selected?.sq_cash ?? null;           // Square cash figure
+              const mgrVsActual = actual != null ? actualTotal - expected : null;               // Manager vs Actual discrepancy
+              const finalDisc   = actualTotal != null && sqCash != null ? actualTotal - sqCash : null; // Final: Actual Total vs Square
+              const finalIsMajor = finalDisc != null && Math.abs(finalDisc) > 5;
+              const mgrIsMajor   = mgrVsActual != null && Math.abs(mgrVsActual) > 5;
+
+              function discColor(v) {
+                if (v == null) return '#a89078';
+                return Math.abs(v) < 0.01 ? '#4a6622' : Math.abs(v) > 5 ? '#991b1b' : '#7c5200';
+              }
+              function discBg(v) {
+                if (v == null) return 'transparent';
+                return Math.abs(v) < 0.01 ? '#f0f5e8' : Math.abs(v) > 5 ? '#fef2f2' : '#fffbeb';
+              }
+              function discBorder(v) {
+                if (v == null) return 'transparent';
+                return Math.abs(v) < 0.01 ? '#b5d08a' : Math.abs(v) > 5 ? '#fca5a5' : '#f0c97a';
+              }
+              function diffLabel(v) {
+                if (v == null) return '—';
+                if (Math.abs(v) < 0.01) return '✓ Match';
+                return v > 0 ? `+£${f2(Math.abs(v))}` : `−£${f2(Math.abs(v))}`;
+              }
+
               return (
                 <>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f9f4ef' }}>
-                      <span style={{ fontSize: 13, color: '#7d6553' }}>Manager Cash (physical)</span>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>£{f2(selected?.physical_cash)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f9f4ef' }}>
-                      <span style={{ fontSize: 13, color: '#7d6553' }}>(+) Petty Cash</span>
-                      <span style={{ fontSize: 13, color: '#c88a2e', fontWeight: 600 }}>£{f2(selected?.petty_cash)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #ede8e0', fontWeight: 700 }}>
-                      <span style={{ fontSize: 13, color: '#2d1f14' }}>Total Manager Cash</span>
-                      <span style={{ fontSize: 13, color: '#2563eb' }}>£{f2(total)}</span>
-                    </div>
-                    {actual != null && (
-                      <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f9f4ef', fontWeight: 700 }}>
-                          <span style={{ fontSize: 13, color: '#2d1f14' }}>Actual Cash Held</span>
-                          <span style={{ fontSize: 13 }}>£{f2(actual)}</span>
-                        </div>
-                        <div style={{
-                          display: 'flex', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 7, marginTop: 6,
-                          background: Math.abs(cashDisc) < 0.01 ? '#f0f5e8' : isMajor ? '#fef2f2' : '#fffbeb',
-                          border: `1px solid ${Math.abs(cashDisc) < 0.01 ? '#b5d08a' : isMajor ? '#fca5a5' : '#f0c97a'}`,
-                        }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: discColor }}>Cash Discrepancy</span>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: discColor }}>
-                            {Math.abs(cashDisc) < 0.01 ? '✓ Match' : cashDisc > 0 ? `+£${f2(cashDisc)}` : `−£${f2(Math.abs(cashDisc))}`}
-                          </span>
-                        </div>
-                      </>
+                  {/* Section 1 — Manager Report */}
+                  <div style={s.cvSection}>
+                    <p style={s.cvSectionLabel}>① Manager Report</p>
+                    <CvRow label="Manager Cash (physical count)" value={`£${f2(physical)}`} />
+                    <CvRow label="(+) Petty Cash" value={`£${f2(petty)}`} valueColor="#c88a2e" />
+                    <CvRow label="Expected Total (Manager + Petty)" value={`£${f2(expected)}`} bold valueColor="#2563eb" />
+                  </div>
+
+                  {/* Section 2 — Actual Verification */}
+                  <div style={s.cvSection}>
+                    <p style={s.cvSectionLabel}>② Actual Verification (Accounts)</p>
+                    <CvRow label="Actual Cash Held (physical count)" value={actual != null ? `£${f2(actual)}` : <span style={{ color: '#c88a2e', fontSize: 12, fontStyle: 'italic' }}>Not entered yet</span>} />
+                    <CvRow label="(+) Petty Cash" value={`£${f2(petty)}`} valueColor="#c88a2e" />
+                    <CvRow label="Actual Total (Held + Petty)" value={actualTotal != null ? `£${f2(actualTotal)}` : '—'} bold valueColor="#2563eb" />
+                    {mgrVsActual != null && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', borderRadius: 7, background: discBg(mgrVsActual), border: `1px solid ${discBorder(mgrVsActual)}`, marginTop: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: discColor(mgrVsActual) }}>Manager vs Actual</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: discColor(mgrVsActual) }}>{diffLabel(mgrVsActual)}</span>
+                      </div>
                     )}
                   </div>
+
+                  {/* Section 3 — Square Data */}
+                  <div style={s.cvSection}>
+                    <p style={s.cvSectionLabel}>③ Square Data</p>
+                    <CvRow label="Square Cash Total" value={sqCash != null ? `£${f2(sqCash)}` : <span style={{ color: '#a89078', fontSize: 12 }}>Not reconciled yet</span>} bold />
+                  </div>
+
+                  {/* Section 4 — Final Result */}
+                  {(actualTotal != null || sqCash != null) && (
+                    <div style={s.cvSection}>
+                      <p style={s.cvSectionLabel}>④ Final Result</p>
+                      <div style={{ padding: '10px 12px', borderRadius: 8, background: discBg(finalDisc), border: `2px solid ${discBorder(finalDisc)}` }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: discColor(finalDisc) }}>Cash Discrepancy</span>
+                          <span style={{ fontSize: 16, fontWeight: 800, color: discColor(finalDisc) }}>
+                            {finalDisc != null ? diffLabel(finalDisc) : '—'}
+                          </span>
+                        </div>
+                        {finalDisc != null && (
+                          <p style={{ fontSize: 11, color: '#7d6553', margin: '4px 0 0' }}>
+                            Actual Total £{f2(actualTotal)} vs Square £{f2(sqCash)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Entry form */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, borderTop: '1px solid #f5ede0', paddingTop: 10, marginTop: 4 }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: '#7d6553' }}>Actual Cash Received / Held</label>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: '#7d6553' }}>Enter Actual Cash Held</label>
                     <input
                       type="number" step="0.01" min="0"
                       value={actualCash}
@@ -745,6 +786,15 @@ function DetailSection({ items, columns, render, empty }) {
   );
 }
 
+function CvRow({ label, value, bold, valueColor }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid #f9f4ef' }}>
+      <span style={{ fontSize: 12, color: '#7d6553' }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: bold ? 700 : 500, color: valueColor || '#2d1f14' }}>{value}</span>
+    </div>
+  );
+}
+
 function Tag({ text, light }) {
   return (
     <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, background: light ? '#f5ede0' : '#fef3ee', color: light ? '#7d6553' : '#9a2e05', fontWeight: 600 }}>
@@ -803,7 +853,9 @@ const s = {
   sqExtras: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 },
   chip:     { padding: '10px 12px', borderRadius: 8, border: '1px solid', display: 'flex', flexDirection: 'column', gap: 3 },
 
-  noteBox: { padding: '8px 12px', background: '#fefcf9', borderRadius: 7, fontSize: 12, color: '#4a3728', borderLeft: '3px solid #c1440e' },
+  noteBox:        { padding: '8px 12px', background: '#fefcf9', borderRadius: 7, fontSize: 12, color: '#4a3728', borderLeft: '3px solid #c1440e' },
+  cvSection:      { display: 'flex', flexDirection: 'column', gap: 2, padding: '10px 12px', background: '#fafaf8', borderRadius: 8, border: '1px solid #f0ebe3' },
+  cvSectionLabel: { fontSize: 10, fontWeight: 700, color: '#a89078', textTransform: 'uppercase', letterSpacing: '0.8px', margin: '0 0 4px' },
 
   detailTabRow: { display: 'flex', gap: 4, borderBottom: '1px solid #f5ede0', paddingBottom: 12, flexWrap: 'wrap' },
   dtab:         { padding: '6px 14px', border: 'none', background: 'none', fontSize: 13, color: '#7d6553', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 },
