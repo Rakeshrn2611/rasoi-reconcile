@@ -40,6 +40,12 @@ export const api = {
   }),
   lockRecon: (venue_id, date) => request('/square/lock', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ venue_id, date }) }),
   unlockRecon: (venue_id, date) => request('/square/unlock', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ venue_id, date }) }),
+
+  setActualCash: (id, actual_cash_held, actual_cash_notes) => request(`/reports/${id}/actual-cash`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actual_cash_held, actual_cash_notes }) }),
+  getDiscrepancies: (params = {}) => request(`/discrepancies?${new URLSearchParams(params)}`),
+  setDiscrepancyStatus: (venue_id, date, category, status, notes) => request('/discrepancies/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ venue_id, date, category, status, notes }) }),
+  getTips: (params = {}) => request(`/tips?${new URLSearchParams(params)}`),
+  setCashTipsFinal: (id, cash_tips_final) => request(`/reports/${id}/cash-tips-final`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cash_tips_final }) }),
   exportExcel: (params = {}) => {
     const url = `${BASE}/export/excel?${new URLSearchParams(params)}`;
     window.location.href = url;
