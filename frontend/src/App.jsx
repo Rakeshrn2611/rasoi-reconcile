@@ -12,10 +12,12 @@ import Refunds from './pages/Refunds.jsx';
 import Discounts from './pages/Discounts.jsx';
 import GiftCards from './pages/GiftCards.jsx';
 import DiscrepanciesPage from './pages/Discrepancies.jsx';
+import Tips from './pages/Tips.jsx';
 
 const NAV = [
   { id: 'dashboard',      label: 'Dashboard',       icon: IconGrid },
   { id: 'reports',        label: 'Manager Reports', icon: IconDoc },
+  { id: 'tips',           label: 'Tips',            icon: IconTips },
   { id: 'discrepancies',  label: 'Discrepancies',   icon: IconAlert },
   { id: 'history',        label: 'History',         icon: IconClock },
   { id: 'settings',       label: 'Settings',        icon: IconGear },
@@ -25,6 +27,7 @@ const ALL_PAGES = {
   dashboard:      { label: 'Dashboard' },
   reconcile:      { label: 'Reconciliation' },
   reports:        { label: 'Manager Reports' },
+  tips:           { label: 'Tips' },
   discrepancies:  { label: 'Discrepancies' },
   history:        { label: 'History' },
   settings:       { label: 'Settings' },
@@ -165,6 +168,7 @@ export default function App() {
           {page === 'refunds'    && <Refunds        {...pageProps} />}
           {page === 'discounts'  && <Discounts      {...pageProps} />}
           {page === 'gift_cards'    && <GiftCards        {...pageProps} />}
+          {page === 'tips'          && <Tips             {...pageProps} />}
           {page === 'discrepancies' && <DiscrepanciesPage {...pageProps} />}
         </div>
       </div>
@@ -213,6 +217,9 @@ function IconMenu() {
 }
 function IconAlert() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+}
+function IconTips() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/><path d="M8.5 8.5h.01"/></svg>;
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
