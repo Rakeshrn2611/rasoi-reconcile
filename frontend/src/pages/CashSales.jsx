@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { api } from '../api/client.js';
 import { useIsMobile } from '../hooks/useIsMobile.js';
 
@@ -8,18 +8,11 @@ const today      = () => new Date().toISOString().slice(0, 10);
 const monthStart = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; };
 const yearStart  = () => `${new Date().getFullYear()}-01-01`;
 
-// Total Sales = Cash + Petty + Card + Deposits + Gifts
-// Does NOT include: discounts, complimentary, refunds, tips
-function calcTotal(r) {
-  return (r.cash_sales || 0) + (r.petty_cash || 0) + (r.card_sales || 0) +
-         (r.deposits_used || 0) + (r.gift_cards_redeemed || 0);
-}
-
 export default function CashSales({ selectedVenue, venues, showToast }) {
   const isMobile = useIsMobile();
-  const [from, setFrom] = useState(monthStart());
-  const [to,   setTo]   = useState(today());
-  const [rows, setRows] = useState([]);
+  const [from, setFrom]   = useState(monthStart());
+  const [to, setTo]       = useState(today());
+  const [rows, setRows]   = useState([]);
   const [loading, setLoading] = useState(true);
 
   const venueName = selectedVenue === 'all' ? 'All Venues' : venues.find(v => v.id === selectedVenue)?.name ?? '';
@@ -49,39 +42,26 @@ export default function CashSales({ selectedVenue, venues, showToast }) {
     else { setFrom('2022-01-01'); setTo(today()); }
   }
 
-  const totals = useMemo(() => rows.reduce((a, r) => ({
-    cash:     a.cash     + (r.cash_sales          || 0),
-    petty:    a.petty    + (r.petty_cash           || 0),
-    card:     a.card     + (r.card_sales           || 0),
-    deposits: a.deposits + (r.deposits_used        || 0),
-    gifts:    a.gifts    + (r.gift_cards_redeemed  || 0),
-    total:    a.total    + calcTotal(r),
-  }), { cash: 0, petty: 0, card: 0, deposits: 0, gifts: 0, total: 0 }), [rows]);
-
-  function doExportCSV() {
-    if (!rows.length) return;
-    const data = rows.map(r => ({
-      Date:            r.date,
-      Venue:           r.venue_name,
-      'Cash Sales':    f2(r.cash_sales),
-      'Petty Cash':    f2(r.petty_cash),
-      'Card Sales':    f2(r.card_sales),
-      'Deposits Used': f2(r.deposits_used),
-      'Gift Vouchers': f2(r.gift_cards_redeemed),
-      'Total Sales':   f2(calcTotal(r)),
-      Status:          r.sq_total != null ? (r.sq_locked === 1 ? 'Locked' : 'Reconciled') : 'Pending',
-    }));
-    const keys = Object.keys(data[0]);
-    const csv  = [keys.join(','), ...data.map(r => keys.map(k => `"${String(r[k]??'').replace(/"/g,'""')}"`).join(','))].join('\n');
-    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv],{type:'text/csv'})), download: `total-sales-${from}-${to}.csv` });
-    a.click();
+  function updateRow(id, actual) {
+    setRows(prev => prev.map(r => r.id === id ? { ...r, actual_cash_held: actual } : r));
   }
 
-  function doExportExcel() {
-    const params = new URLSearchParams({ from, to });
-    if (selectedVenue !== 'all') params.set('venue_id', selectedVenue);
-    window.location.href = `/api/export/excel?${params}`;
-  }
+  // Period totals
+  const totals = useMemo(() => rows.reduce((a, r) => {
+    const mgr    = r.physical_cash || 0;
+    const petty  = r.petty_cash    || 0;
+    const actual = r.actual_cash_held != null ? Number(r.actual_cash_held) : null;
+    return {
+      manager:       a.manager       + mgr,
+      petty:         a.petty         + petty,
+      actual:        a.actual        + (actual ?? 0),
+      actualCount:   a.actualCount   + (actual != null ? 1 : 0),
+      totalCash:     a.totalCash     + (actual != null ? actual + petty : 0),
+      totalCount:    a.totalCount    + (actual != null ? 1 : 0),
+    };
+  }, { manager: 0, petty: 0, actual: 0, actualCount: 0, totalCash: 0, totalCount: 0 }), [rows]);
+
+  const pendingEntry = rows.length - totals.actualCount;
 
   return (
     <div style={s.root}>
@@ -98,84 +78,63 @@ export default function CashSales({ selectedVenue, venues, showToast }) {
             <button key={v} onClick={() => setPreset(v)} style={s.presetBtn}>{l}</button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
-          <button onClick={doExportCSV}   style={s.exportBtn}>↓ CSV</button>
-          <button onClick={doExportExcel} style={{ ...s.exportBtn, background: '#5a7a30' }}>↓ Excel</button>
-        </div>
       </div>
 
-      {/* Total Sales banner */}
-      <div style={s.totalBanner}>
-        <div>
-          <p style={{ fontSize: 11, color: '#a89078', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>
-            Total Sales — Cash + Petty + Card + Deposits + Gifts
-          </p>
-          <p style={{ fontSize: 11, color: '#7d6553', margin: '3px 0 0' }}>{fDate(from)} – {fDate(to)} · {venueName}</p>
-        </div>
-        <span style={{ fontSize: 36, fontWeight: 800, color: '#c1440e', letterSpacing: '-1.5px' }}>£{f2(totals.total)}</span>
+      {/* How-it-works note */}
+      <div style={s.infoBox}>
+        <strong>Cash Sales — Cash Verification</strong> · Manager Cash and Petty Cash are auto-filled from the Manager Report.
+        Enter <em>Actual Cash Held</em> here (accounts team only). This value is used automatically in Reconciliation — no re-entry needed.
       </div>
 
-      {/* Component KPIs */}
+      {/* Period summary */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)', gap: 10 }}>
-        <KPI label="Cash Sales"    value={totals.cash}     color="#5a7a30" />
-        <KPI label="Petty Cash"    value={totals.petty}    color="#c88a2e" />
-        <KPI label="Card Sales"    value={totals.card}     color="#2563eb" />
-        <KPI label="Deposits Used" value={totals.deposits} color="#7c3d8c" />
-        <KPI label="Gift Vouchers" value={totals.gifts}    color="#4a6622" />
+        <KPI label="Manager Cash (total)" value={totals.manager}   color="#2d1f14" />
+        <KPI label="Actual Cash Held"     value={totals.actualCount > 0 ? totals.actual : null} color="#2563eb" empty={pendingEntry > 0 ? `${pendingEntry} day(s) pending` : '—'} />
+        <KPI label="Discrepancy (Mgr vs Actual)"
+          value={totals.actualCount > 0 ? totals.actual - totals.manager : null}
+          diff color="#7c5200" empty="Awaiting entry" />
+        <KPI label="Petty Cash (total)"   value={totals.petty}     color="#c88a2e" />
+        <KPI label="Total Cash (Actual + Petty)"
+          value={totals.totalCount > 0 ? totals.totalCash : null}
+          color="#5a7a30" empty="Awaiting entry" />
       </div>
 
-      {/* Daily breakdown table */}
+      {pendingEntry > 0 && (
+        <div style={s.warningBox}>
+          ⚠ <strong>{pendingEntry} day{pendingEntry !== 1 ? 's' : ''}</strong> still need Actual Cash Held to be entered.
+          Click the value in the "Actual Held" column to enter.
+        </div>
+      )}
+
+      {/* Daily table */}
       <div style={s.tableCard}>
         <div style={s.tableHdr}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#2d1f14' }}>Daily Breakdown</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#2d1f14' }}>Daily Cash Verification</span>
           <span style={{ fontSize: 12, color: '#a89078' }}>{rows.length} entries</span>
         </div>
 
         {loading ? <p style={s.empty}>Loading…</p>
         : !rows.length ? <p style={s.empty}>No data for this period.</p>
         : isMobile
-          ? rows.map((r, i) => <MobileCard key={i} row={r} />)
+          ? rows.map((r, i) => <MobileCard key={i} row={r} showToast={showToast} onUpdate={updateRow} />)
           : (
             <div style={{ overflowX: 'auto' }}>
               <table style={s.table}>
                 <thead>
                   <tr>
-                    {['Date','Venue','Cash Sales','Petty Cash','Card Sales','Deposits','Gift Vouchers','Total Sales','Status'].map(h => (
-                      <th key={h} style={s.th}>{h}</th>
-                    ))}
+                    <th style={s.th}>Date</th>
+                    <th style={s.th}>Venue</th>
+                    <th style={{ ...s.th, background: '#faf7f2' }}>Manager Cash <ReadOnlyBadge /></th>
+                    <th style={{ ...s.th, background: '#faf7f2' }}>Petty Cash <ReadOnlyBadge /></th>
+                    <th style={{ ...s.th, background: '#f0f5ff' }}>Actual Held ✎</th>
+                    <th style={s.th}>Discrepancy</th>
+                    <th style={s.th}>Total Cash</th>
+                    <th style={s.th}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r, i) => {
-                    const total = calcTotal(r);
-                    return (
-                      <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#fefcf9' }}>
-                        <td style={s.td}>{fDate(r.date)}</td>
-                        <td style={s.td}><VenuePill name={r.venue_name} /></td>
-                        <td style={{ ...s.td, textAlign: 'right', color: '#5a7a30', fontWeight: 500 }}>£{f2(r.cash_sales)}</td>
-                        <td style={{ ...s.td, textAlign: 'right', color: '#c88a2e' }}>£{f2(r.petty_cash)}</td>
-                        <td style={{ ...s.td, textAlign: 'right', color: '#2563eb', fontWeight: 500 }}>£{f2(r.card_sales)}</td>
-                        <td style={{ ...s.td, textAlign: 'right' }}>£{f2(r.deposits_used)}</td>
-                        <td style={{ ...s.td, textAlign: 'right' }}>£{f2(r.gift_cards_redeemed)}</td>
-                        <td style={{ ...s.td, textAlign: 'right', fontWeight: 800, color: '#c1440e' }}>£{f2(total)}</td>
-                        <td style={s.td}><StatusPill row={r} /></td>
-                      </tr>
-                    );
-                  })}
+                  {rows.map((r, i) => <DesktopRow key={i} row={r} idx={i} showToast={showToast} onUpdate={updateRow} />)}
                 </tbody>
-                {/* Totals footer */}
-                <tfoot>
-                  <tr style={{ background: '#faf7f2', borderTop: '2px solid #e8dcc8' }}>
-                    <td style={{ ...s.td, fontWeight: 700, color: '#2d1f14' }} colSpan={2}>Period Total</td>
-                    <td style={{ ...s.td, textAlign: 'right', fontWeight: 700, color: '#5a7a30' }}>£{f2(totals.cash)}</td>
-                    <td style={{ ...s.td, textAlign: 'right', fontWeight: 700, color: '#c88a2e' }}>£{f2(totals.petty)}</td>
-                    <td style={{ ...s.td, textAlign: 'right', fontWeight: 700, color: '#2563eb' }}>£{f2(totals.card)}</td>
-                    <td style={{ ...s.td, textAlign: 'right', fontWeight: 700 }}>£{f2(totals.deposits)}</td>
-                    <td style={{ ...s.td, textAlign: 'right', fontWeight: 700 }}>£{f2(totals.gifts)}</td>
-                    <td style={{ ...s.td, textAlign: 'right', fontWeight: 800, color: '#c1440e', fontSize: 15 }}>£{f2(totals.total)}</td>
-                    <td style={s.td} />
-                  </tr>
-                </tfoot>
               </table>
             </div>
           )
@@ -185,50 +144,179 @@ export default function CashSales({ selectedVenue, venues, showToast }) {
   );
 }
 
-function MobileCard({ row }) {
-  const total = calcTotal(row);
+// ── Desktop row ───────────────────────────────────────────────────────────────
+
+function DesktopRow({ row, idx, showToast, onUpdate }) {
+  const mgr    = row.physical_cash || 0;
+  const petty  = row.petty_cash    || 0;
+  const actual = row.actual_cash_held != null ? Number(row.actual_cash_held) : null;
+  const disc   = actual != null ? actual - mgr    : null;
+  const total  = actual != null ? actual + petty  : null;
+  const isMajor = disc != null && Math.abs(disc) > 5;
+  const isMinor = disc != null && Math.abs(disc) > 0 && !isMajor;
+
   return (
-    <div style={s.mCard}>
+    <tr style={{ background: isMajor ? '#fff5f5' : isMinor ? '#fffbeb' : idx % 2 === 0 ? '#fff' : '#fefcf9' }}>
+      <td style={s.td}>{fDate(row.date)}</td>
+      <td style={s.td}><VenuePill name={row.venue_name} /></td>
+      <td style={{ ...s.td, background: '#fafaf8', textAlign: 'right', color: '#2d1f14', fontWeight: 500 }}>£{f2(mgr)}</td>
+      <td style={{ ...s.td, background: '#fafaf8', textAlign: 'right', color: '#c88a2e' }}>£{f2(petty)}</td>
+      <td style={{ ...s.td, background: '#f5f8ff' }}>
+        <EditableActual row={row} showToast={showToast} onUpdate={onUpdate} />
+      </td>
+      <td style={{ ...s.td, textAlign: 'right' }}><DiffCell value={disc} /></td>
+      <td style={{ ...s.td, textAlign: 'right', fontWeight: 700, color: '#5a7a30' }}>
+        {total != null ? `£${f2(total)}` : <span style={{ color: '#a89078', fontSize: 11 }}>—</span>}
+      </td>
+      <td style={s.td}><StatusPill row={row} /></td>
+    </tr>
+  );
+}
+
+// ── Mobile card ───────────────────────────────────────────────────────────────
+
+function MobileCard({ row, showToast, onUpdate }) {
+  const mgr    = row.physical_cash || 0;
+  const petty  = row.petty_cash    || 0;
+  const actual = row.actual_cash_held != null ? Number(row.actual_cash_held) : null;
+  const disc   = actual != null ? actual - mgr   : null;
+  const total  = actual != null ? actual + petty : null;
+  const isMajor = disc != null && Math.abs(disc) > 5;
+
+  return (
+    <div style={{ ...s.mCard, borderLeft: `3px solid ${isMajor ? '#c1440e' : actual != null ? '#b5d08a' : '#e8dcc8'}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontWeight: 700, fontSize: 14, color: '#2d1f14' }}>{fDate(row.date)}</span>
-        <span style={{ fontSize: 17, fontWeight: 800, color: '#c1440e' }}>£{f2(total)}</span>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <VenuePill name={row.venue_name} />
         <StatusPill row={row} />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 4 }}>
-        <MCell label="Cash"     value={`£${f2(row.cash_sales)}`}         color="#5a7a30" />
-        <MCell label="Petty"    value={`£${f2(row.petty_cash)}`}          color="#c88a2e" />
-        <MCell label="Card"     value={`£${f2(row.card_sales)}`}          color="#2563eb" />
-        <MCell label="Deposits" value={`£${f2(row.deposits_used)}`} />
-        <MCell label="Gifts"    value={`£${f2(row.gift_cards_redeemed)}`} />
+      <VenuePill name={row.venue_name} />
+
+      {/* Section 1 — Manager Data (read only) */}
+      <div style={s.mSection}>
+        <p style={s.mSectionTitle}>Manager Data</p>
+        <div style={s.mRow}><span style={s.mLbl}>Manager Cash</span><span style={{ fontWeight: 500 }}>£{f2(mgr)}</span></div>
+        <div style={s.mRow}><span style={s.mLbl}>Petty Cash</span><span style={{ color: '#c88a2e' }}>£{f2(petty)}</span></div>
       </div>
+
+      {/* Section 2 — Actual Entry */}
+      <div style={s.mSection}>
+        <p style={s.mSectionTitle}>Actual Entry (Accounts)</p>
+        <div style={s.mRow}>
+          <span style={s.mLbl}>Actual Cash Held</span>
+          <EditableActual row={row} showToast={showToast} onUpdate={onUpdate} />
+        </div>
+      </div>
+
+      {/* Section 3 — Calculations */}
+      {actual != null && (
+        <div style={s.mSection}>
+          <p style={s.mSectionTitle}>Calculations</p>
+          <div style={s.mRow}>
+            <span style={s.mLbl}>Discrepancy (Mgr vs Actual)</span>
+            <DiffCell value={disc} />
+          </div>
+          <div style={s.mRow}>
+            <span style={s.mLbl}>Total Cash (Actual + Petty)</span>
+            <span style={{ fontWeight: 700, color: '#5a7a30' }}>£{f2(total)}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function KPI({ label, value, color }) {
+// ── Inline editable Actual Cash Held ─────────────────────────────────────────
+
+function EditableActual({ row, showToast, onUpdate }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal]         = useState(row.actual_cash_held != null ? String(row.actual_cash_held) : '');
+  const [saving, setSaving]   = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    setVal(row.actual_cash_held != null ? String(row.actual_cash_held) : '');
+  }, [row.actual_cash_held]);
+
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  async function save() {
+    if (val === '') { setEditing(false); return; }
+    const num = parseFloat(val);
+    if (isNaN(num)) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      await api.setActualCash(row.id, num, row.actual_cash_notes || '');
+      onUpdate(row.id, num);
+      showToast('Actual cash saved');
+    } catch (err) { showToast(err.message, 'error'); }
+    setSaving(false);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        <input
+          ref={inputRef}
+          type="number" step="0.01" min="0"
+          value={val}
+          onChange={e => setVal(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
+          onBlur={save}
+          style={{ width: 90, padding: '4px 7px', border: '1.5px solid #c9a87c', borderRadius: 6, fontSize: 13, background: '#fffbf5' }}
+        />
+        {saving && <span style={{ fontSize: 11, color: '#a89078' }}>…</span>}
+      </span>
+    );
+  }
+
+  const hasVal = row.actual_cash_held != null;
   return (
-    <div style={{ background: '#fff', border: '1.5px solid #ede8e0', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <span onClick={() => setEditing(true)} title="Click to enter/edit actual cash held" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+      {hasVal
+        ? <span style={{ fontWeight: 700, color: '#2563eb' }}>£{f2(row.actual_cash_held)}</span>
+        : <span style={{ fontSize: 12, color: '#c88a2e', fontStyle: 'italic' }}>Enter ✎</span>
+      }
+      {hasVal && <span style={{ fontSize: 10, color: '#c9a87c' }}>✎</span>}
+    </span>
+  );
+}
+
+// ── Small components ──────────────────────────────────────────────────────────
+
+function ReadOnlyBadge() {
+  return <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#f5ede0', color: '#a89078', marginLeft: 4 }}>AUTO</span>;
+}
+
+function KPI({ label, value, color, diff, empty }) {
+  let display = value != null ? `£${f2(value)}` : (empty || '—');
+  let displayColor = color;
+
+  if (diff && value != null) {
+    const abs = Math.abs(value);
+    if (abs < 0.01) { display = '✓ Match'; displayColor = '#4a6622'; }
+    else { display = value > 0 ? `+£${f2(abs)}` : `−£${f2(abs)}`; displayColor = abs > 5 ? '#991b1b' : '#7c5200'; }
+  }
+
+  return (
+    <div style={{ background: '#fff', border: '1.5px solid #ede8e0', borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
       <span style={{ fontSize: 10, color: '#a89078', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
-      <span style={{ fontSize: 22, fontWeight: 800, color, letterSpacing: '-0.5px' }}>£{f2(value)}</span>
+      <span style={{ fontSize: 20, fontWeight: 800, color: value != null ? displayColor : '#c88a2e' }}>{display}</span>
     </div>
   );
 }
 
-function MCell({ label, value, color }) {
+function DiffCell({ value }) {
+  if (value == null) return <span style={{ color: '#a89078', fontSize: 11 }}>—</span>;
+  const abs = Math.abs(value);
+  if (abs < 0.01) return <span style={{ color: '#4a6622', fontWeight: 700 }}>✓</span>;
+  const color = abs > 5 ? '#991b1b' : '#7c5200';
+  const bg    = abs > 5 ? '#fef2f2' : '#fffbeb';
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <span style={{ fontSize: 10, color: '#a89078', fontWeight: 600, textTransform: 'uppercase' }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: 600, color: color || '#2d1f14' }}>{value}</span>
-    </div>
+    <span style={{ fontSize: 12, fontWeight: 700, color, background: bg, padding: '2px 7px', borderRadius: 5 }}>
+      {value > 0 ? `+£${f2(abs)}` : `−£${f2(abs)}`}
+    </span>
   );
-}
-
-function VenuePill({ name }) {
-  const c = name?.includes('Waterfront') ? '#2563eb' : '#c1440e';
-  return <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: c + '18', color: c }}>{name}</span>;
 }
 
 function StatusPill({ row }) {
@@ -241,19 +329,28 @@ function Pill({ label, bg, color, border }) {
   return <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, background: bg, color, border: `1px solid ${border}` }}>{label}</span>;
 }
 
+function VenuePill({ name }) {
+  const c = name?.includes('Waterfront') ? '#2563eb' : '#c1440e';
+  return <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: c + '18', color: c }}>{name}</span>;
+}
+
 const s = {
   root:        { display: 'flex', flexDirection: 'column', gap: 16 },
   filterBar:   { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: '#fff', borderRadius: 12, padding: '12px 16px', border: '1px solid #ede8e0' },
   venueBadge:  { fontSize: 13, fontWeight: 600, color: '#c1440e', background: '#fef3ee', padding: '4px 12px', borderRadius: 20, whiteSpace: 'nowrap' },
   dateInput:   { padding: '6px 10px', border: '1px solid #ede8e0', borderRadius: 7, fontSize: 13, color: '#2d1f14', background: '#fff' },
   presetBtn:   { padding: '5px 12px', background: '#faf7f2', border: '1px solid #ede8e0', borderRadius: 6, fontSize: 12, color: '#7d6553', cursor: 'pointer', whiteSpace: 'nowrap' },
-  exportBtn:   { padding: '7px 14px', background: '#2d1f14', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' },
-  totalBanner: { background: '#fff', borderRadius: 14, border: '2px solid #f5c9a8', padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
+  infoBox:     { background: '#fefcf9', border: '1px solid #e8dcc8', borderRadius: 9, padding: '10px 14px', fontSize: 12, color: '#7d6553', lineHeight: 1.5 },
+  warningBox:  { background: '#fdf5e0', border: '1px solid #f0c97a', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#7c5200' },
   tableCard:   { background: '#fff', borderRadius: 12, border: '1px solid #ede8e0', overflow: 'hidden' },
   tableHdr:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid #f5ede0' },
   table:       { width: '100%', borderCollapse: 'collapse' },
   th:          { padding: '10px 12px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#a89078', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #f5ede0', whiteSpace: 'nowrap' },
   td:          { padding: '11px 12px', fontSize: 13, color: '#4a3728', borderBottom: '1px solid #faf5ee', verticalAlign: 'middle' },
   empty:       { padding: 40, textAlign: 'center', color: '#a89078', fontSize: 14 },
-  mCard:       { padding: '14px 16px', borderBottom: '1px solid #f5ede0', display: 'flex', flexDirection: 'column', gap: 8 },
+  mCard:       { padding: '14px 16px', borderBottom: '1px solid #f5ede0', display: 'flex', flexDirection: 'column', gap: 10 },
+  mSection:    { background: '#fafaf8', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4 },
+  mSectionTitle:{ fontSize: 9, fontWeight: 700, color: '#a89078', textTransform: 'uppercase', letterSpacing: '0.8px', margin: '0 0 2px' },
+  mRow:        { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 },
+  mLbl:        { fontSize: 12, color: '#7d6553' },
 };
