@@ -11,25 +11,28 @@ import CardSales from './pages/CardSales.jsx';
 import Refunds from './pages/Refunds.jsx';
 import Discounts from './pages/Discounts.jsx';
 import GiftCards from './pages/GiftCards.jsx';
+import DiscrepanciesPage from './pages/Discrepancies.jsx';
 
 const NAV = [
-  { id: 'dashboard', label: 'Dashboard',       icon: IconGrid },
-  { id: 'reports',   label: 'Manager Reports', icon: IconDoc },
-  { id: 'history',   label: 'History',         icon: IconClock },
-  { id: 'settings',  label: 'Settings',        icon: IconGear },
+  { id: 'dashboard',      label: 'Dashboard',       icon: IconGrid },
+  { id: 'reports',        label: 'Manager Reports', icon: IconDoc },
+  { id: 'discrepancies',  label: 'Discrepancies',   icon: IconAlert },
+  { id: 'history',        label: 'History',         icon: IconClock },
+  { id: 'settings',       label: 'Settings',        icon: IconGear },
 ];
 
 const ALL_PAGES = {
-  dashboard:  { label: 'Dashboard' },
-  reconcile:  { label: 'Reconciliation' },
-  reports:    { label: 'Manager Reports' },
-  history:    { label: 'History' },
-  settings:   { label: 'Settings' },
-  cash:       { label: 'Cash Sales',    parent: 'dashboard' },
-  card:       { label: 'Card Sales',    parent: 'dashboard' },
-  refunds:    { label: 'Refunds',       parent: 'dashboard' },
-  discounts:  { label: 'Discounts',     parent: 'dashboard' },
-  gift_cards: { label: 'Gift Vouchers', parent: 'dashboard' },
+  dashboard:      { label: 'Dashboard' },
+  reconcile:      { label: 'Reconciliation' },
+  reports:        { label: 'Manager Reports' },
+  discrepancies:  { label: 'Discrepancies' },
+  history:        { label: 'History' },
+  settings:       { label: 'Settings' },
+  cash:           { label: 'Cash Sales',    parent: 'dashboard' },
+  card:           { label: 'Card Sales',    parent: 'dashboard' },
+  refunds:        { label: 'Refunds',       parent: 'dashboard' },
+  discounts:      { label: 'Discounts',     parent: 'dashboard' },
+  gift_cards:     { label: 'Gift Vouchers', parent: 'dashboard' },
 };
 
 export default function App() {
@@ -161,7 +164,8 @@ export default function App() {
           {page === 'card'       && <CardSales      {...pageProps} />}
           {page === 'refunds'    && <Refunds        {...pageProps} />}
           {page === 'discounts'  && <Discounts      {...pageProps} />}
-          {page === 'gift_cards' && <GiftCards      {...pageProps} />}
+          {page === 'gift_cards'    && <GiftCards        {...pageProps} />}
+          {page === 'discrepancies' && <DiscrepanciesPage {...pageProps} />}
         </div>
       </div>
 
@@ -206,6 +210,9 @@ function IconGear() {
 }
 function IconMenu() {
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>;
+}
+function IconAlert() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
