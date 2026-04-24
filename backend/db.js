@@ -128,8 +128,30 @@ const migrations = [
   `ALTER TABLE square_data ADD COLUMN locked INTEGER DEFAULT 0`,
   `ALTER TABLE manager_reports ADD COLUMN manager_refunds REAL DEFAULT 0`,
   `ALTER TABLE manager_reports ADD COLUMN manager_refund_notes TEXT DEFAULT ''`,
+  `ALTER TABLE manager_reports ADD COLUMN actual_cash_held REAL`,
+  `ALTER TABLE manager_reports ADD COLUMN actual_cash_notes TEXT DEFAULT ''`,
+  `ALTER TABLE manager_reports ADD COLUMN cash_tips_final REAL`,
+  `ALTER TABLE square_data ADD COLUMN card_tips REAL DEFAULT 0`,
+  `CREATE TABLE IF NOT EXISTS discrepancy_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    venue_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    category TEXT NOT NULL,
+    status TEXT DEFAULT 'unresolved',
+    notes TEXT DEFAULT '',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(venue_id, date, category)
+  )`,
 ];
 for (const sql of migrations) { try { db.exec(sql); } catch {} }
+
+// Performance indexes (safe to run repeatedly)
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_mr_date_venue ON manager_reports(date, venue_id)`); } catch {}
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_mr_date ON manager_reports(date)`); } catch {}
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_sd_date_venue ON square_data(date, venue_id)`); } catch {}
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_dn_date_venue ON discrepancy_notes(date, venue_id)`); } catch {}
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_srd_date ON square_refund_details(date, venue_id)`); } catch {}
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_sdd_date ON square_discount_details(date, venue_id)`); } catch {}
 
 const venueCount = db.prepare('SELECT COUNT(*) as count FROM venues').get();
 if (venueCount.count === 0) {
