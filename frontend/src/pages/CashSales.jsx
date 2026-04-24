@@ -58,8 +58,10 @@ export default function CashSales({ selectedVenue, venues, showToast }) {
       actualCount:   a.actualCount   + (actual != null ? 1 : 0),
       totalCash:     a.totalCash     + (actual != null ? actual + petty : 0),
       totalCount:    a.totalCount    + (actual != null ? 1 : 0),
+      sqCash:        a.sqCash        + (r.sq_cash != null ? Number(r.sq_cash) : 0),
+      sqCount:       a.sqCount       + (r.sq_cash != null ? 1 : 0),
     };
-  }, { manager: 0, petty: 0, actual: 0, actualCount: 0, totalCash: 0, totalCount: 0 }), [rows]);
+  }, { manager: 0, petty: 0, actual: 0, actualCount: 0, totalCash: 0, totalCount: 0, sqCash: 0, sqCount: 0 }), [rows]);
 
   const pendingEntry = rows.length - totals.actualCount;
 
@@ -87,16 +89,19 @@ export default function CashSales({ selectedVenue, venues, showToast }) {
       </div>
 
       {/* Period summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(5,1fr)', gap: 10 }}>
-        <KPI label="Manager Cash (total)" value={totals.manager}   color="#2d1f14" />
-        <KPI label="Actual Cash Held"     value={totals.actualCount > 0 ? totals.actual : null} color="#2563eb" empty={pendingEntry > 0 ? `${pendingEntry} day(s) pending` : '—'} />
-        <KPI label="Discrepancy (Mgr vs Actual)"
-          value={totals.actualCount > 0 ? totals.actual - totals.manager : null}
-          diff color="#7c5200" empty="Awaiting entry" />
-        <KPI label="Petty Cash (total)"   value={totals.petty}     color="#c88a2e" />
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(3,1fr)', gap: 10 }}>
+        <KPI label="Manager Cash" value={totals.manager} color="#2d1f14" />
+        <KPI label="Petty Cash"   value={totals.petty}   color="#c88a2e" />
+        <KPI label="Actual Cash Held" value={totals.actualCount > 0 ? totals.actual : null} color="#2563eb" empty={pendingEntry > 0 ? `${pendingEntry} day(s) pending` : '—'} />
         <KPI label="Total Cash (Actual + Petty)"
           value={totals.totalCount > 0 ? totals.totalCash : null}
           color="#5a7a30" empty="Awaiting entry" />
+        <KPI label="Square Cash"
+          value={totals.sqCount > 0 ? totals.sqCash : null}
+          color="#1e40af" empty="No Square data" />
+        <KPI label="Total Cash vs Square"
+          value={totals.totalCount > 0 && totals.sqCount > 0 ? totals.totalCash - totals.sqCash : null}
+          diff color="#7c5200" empty={totals.totalCount === 0 ? 'Awaiting entry' : 'No Square data'} />
       </div>
 
       {pendingEntry > 0 && (
@@ -127,8 +132,10 @@ export default function CashSales({ selectedVenue, venues, showToast }) {
                     <th style={{ ...s.th, background: '#faf7f2' }}>Manager Cash <ReadOnlyBadge /></th>
                     <th style={{ ...s.th, background: '#faf7f2' }}>Petty Cash <ReadOnlyBadge /></th>
                     <th style={{ ...s.th, background: '#f0f5ff' }}>Actual Held ✎</th>
-                    <th style={s.th}>Discrepancy</th>
-                    <th style={s.th}>Total Cash</th>
+                    <th style={s.th}>Mgr vs Actual</th>
+                    <th style={{ ...s.th, color: '#5a7a30' }}>Total Cash</th>
+                    <th style={{ ...s.th, color: '#1e40af' }}>Square Cash</th>
+                    <th style={{ ...s.th, color: '#c1440e' }}>vs Square</th>
                     <th style={s.th}>Status</th>
                   </tr>
                 </thead>
@@ -147,13 +154,15 @@ export default function CashSales({ selectedVenue, venues, showToast }) {
 // ── Desktop row ───────────────────────────────────────────────────────────────
 
 function DesktopRow({ row, idx, showToast, onUpdate }) {
-  const mgr    = row.physical_cash || 0;
-  const petty  = row.petty_cash    || 0;
-  const actual = row.actual_cash_held != null ? Number(row.actual_cash_held) : null;
-  const disc   = actual != null ? actual - mgr    : null;
-  const total  = actual != null ? actual + petty  : null;
-  const isMajor = disc != null && Math.abs(disc) > 5;
-  const isMinor = disc != null && Math.abs(disc) > 0 && !isMajor;
+  const mgr      = row.physical_cash || 0;
+  const petty    = row.petty_cash    || 0;
+  const actual   = row.actual_cash_held != null ? Number(row.actual_cash_held) : null;
+  const disc     = actual != null ? actual - mgr   : null;
+  const total    = actual != null ? actual + petty : null;
+  const sqCash   = row.sq_cash != null ? Number(row.sq_cash) : null;
+  const vsSquare = total != null && sqCash != null ? total - sqCash : null;
+  const isMajor  = (disc != null && Math.abs(disc) > 5) || (vsSquare != null && Math.abs(vsSquare) > 5);
+  const isMinor  = !isMajor && ((disc != null && Math.abs(disc) > 0) || (vsSquare != null && Math.abs(vsSquare) > 0));
 
   return (
     <tr style={{ background: isMajor ? '#fff5f5' : isMinor ? '#fffbeb' : idx % 2 === 0 ? '#fff' : '#fefcf9' }}>
@@ -168,6 +177,10 @@ function DesktopRow({ row, idx, showToast, onUpdate }) {
       <td style={{ ...s.td, textAlign: 'right', fontWeight: 700, color: '#5a7a30' }}>
         {total != null ? `£${f2(total)}` : <span style={{ color: '#a89078', fontSize: 11 }}>—</span>}
       </td>
+      <td style={{ ...s.td, textAlign: 'right', color: '#1e40af' }}>
+        {sqCash != null ? `£${f2(sqCash)}` : <span style={{ color: '#a89078', fontSize: 11 }}>—</span>}
+      </td>
+      <td style={{ ...s.td, textAlign: 'right' }}><DiffCell value={vsSquare} /></td>
       <td style={s.td}><StatusPill row={row} /></td>
     </tr>
   );
@@ -176,12 +189,14 @@ function DesktopRow({ row, idx, showToast, onUpdate }) {
 // ── Mobile card ───────────────────────────────────────────────────────────────
 
 function MobileCard({ row, showToast, onUpdate }) {
-  const mgr    = row.physical_cash || 0;
-  const petty  = row.petty_cash    || 0;
-  const actual = row.actual_cash_held != null ? Number(row.actual_cash_held) : null;
-  const disc   = actual != null ? actual - mgr   : null;
-  const total  = actual != null ? actual + petty : null;
-  const isMajor = disc != null && Math.abs(disc) > 5;
+  const mgr      = row.physical_cash || 0;
+  const petty    = row.petty_cash    || 0;
+  const actual   = row.actual_cash_held != null ? Number(row.actual_cash_held) : null;
+  const disc     = actual != null ? actual - mgr   : null;
+  const total    = actual != null ? actual + petty : null;
+  const sqCash   = row.sq_cash != null ? Number(row.sq_cash) : null;
+  const vsSquare = total != null && sqCash != null ? total - sqCash : null;
+  const isMajor  = (disc != null && Math.abs(disc) > 5) || (vsSquare != null && Math.abs(vsSquare) > 5);
 
   return (
     <div style={{ ...s.mCard, borderLeft: `3px solid ${isMajor ? '#c1440e' : actual != null ? '#b5d08a' : '#e8dcc8'}` }}>
@@ -218,6 +233,14 @@ function MobileCard({ row, showToast, onUpdate }) {
           <div style={s.mRow}>
             <span style={s.mLbl}>Total Cash (Actual + Petty)</span>
             <span style={{ fontWeight: 700, color: '#5a7a30' }}>£{f2(total)}</span>
+          </div>
+          <div style={s.mRow}>
+            <span style={s.mLbl}>Square Cash</span>
+            <span style={{ color: '#1e40af' }}>{sqCash != null ? `£${f2(sqCash)}` : '—'}</span>
+          </div>
+          <div style={s.mRow}>
+            <span style={s.mLbl}>Total Cash vs Square</span>
+            <DiffCell value={vsSquare} />
           </div>
         </div>
       )}
