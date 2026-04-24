@@ -359,9 +359,9 @@ export default function Reconcile({ venues, showToast, selectedVenue: globalVenu
           <div style={s.card}>
             <h3 style={s.cardTitle}>Cash Verification</h3>
             {(() => {
-              const net      = (selected?.physical_cash || 0) - (selected?.petty_cash || 0);
+              const total    = (selected?.physical_cash || 0) + (selected?.petty_cash || 0);
               const actual   = selected?.actual_cash_held != null ? Number(selected.actual_cash_held) : null;
-              const cashDisc = actual != null ? actual - net : null;
+              const cashDisc = actual != null ? actual - total : null;
               const isMajor  = cashDisc != null && Math.abs(cashDisc) > 5;
               const discColor = cashDisc == null ? '#a89078' : Math.abs(cashDisc) < 0.01 ? '#4a6622' : isMajor ? '#991b1b' : '#7c5200';
               return (
@@ -372,12 +372,12 @@ export default function Reconcile({ venues, showToast, selectedVenue: globalVenu
                       <span style={{ fontSize: 13, fontWeight: 600 }}>£{f2(selected?.physical_cash)}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f9f4ef' }}>
-                      <span style={{ fontSize: 13, color: '#7d6553' }}>(−) Petty Cash</span>
+                      <span style={{ fontSize: 13, color: '#7d6553' }}>(+) Petty Cash</span>
                       <span style={{ fontSize: 13, color: '#c88a2e', fontWeight: 600 }}>£{f2(selected?.petty_cash)}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #ede8e0', fontWeight: 700 }}>
-                      <span style={{ fontSize: 13, color: '#2d1f14' }}>Net Manager Cash</span>
-                      <span style={{ fontSize: 13, color: '#2563eb' }}>£{f2(net)}</span>
+                      <span style={{ fontSize: 13, color: '#2d1f14' }}>Total Manager Cash</span>
+                      <span style={{ fontSize: 13, color: '#2563eb' }}>£{f2(total)}</span>
                     </div>
                     {actual != null && (
                       <>
