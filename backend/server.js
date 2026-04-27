@@ -711,4 +711,97 @@ app.patch('/api/discrepancies/status', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Category daily summary endpoints ─────────────────────────────────────────
+// Each joins manager_reports with the relevant detail table, grouping by day.
+// Only days with activity (manager total > 0 OR square total > 0) are returned.
+
+function dailyParams(req) {
+  const now = new Date();
+  const f = req.query.from || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  const t = req.query.to   || now.toISOString().slice(0, 10);
+  return { f, t, venue_id: req.query.venue_id };
+}
+
+app.get('/api/refunds/daily', (req, res) => {
+  const { f, t, venue_id } = dailyParams(req);
+  let q = `
+    SELECT mr.date, mr.venue_id, v.name as venue_name,
+           COALESCE(mr.manager_refunds, 0) as manager_total,
+           COALESCE(mr.manager_refund_notes, '') as manager_notes,
+           COALESCE(SUM(rd.amount), 0) as sq_total,
+           COUNT(rd.id) as sq_count
+    FROM manager_reports mr
+    JOIN venues v ON v.id = mr.venue_id
+    LEFT JOIN square_refund_details rd ON rd.venue_id = mr.venue_id AND rd.date = mr.date
+    WHERE mr.date >= ? AND mr.date <= ?`;
+  const p = [f, t];
+  if (venue_id) { q += ' AND mr.venue_id = ?'; p.push(venue_id); }
+  q += ` GROUP BY mr.id, mr.date, mr.venue_id
+         HAVING COALESCE(mr.manager_refunds,0) > 0 OR COALESCE(SUM(rd.amount),0) > 0
+         ORDER BY mr.date DESC`;
+  res.json(db.prepare(q).all(...p).map(r => ({ ...r, difference: r.manager_total - r.sq_total })));
+});
+
+app.get('/api/comps/daily', (req, res) => {
+  const { f, t, venue_id } = dailyParams(req);
+  let q = `
+    SELECT mr.date, mr.venue_id, v.name as venue_name,
+           COALESCE(mr.complimentary, 0) as manager_total,
+           COALESCE(mr.complimentary_notes, '') as manager_notes,
+           COALESCE(SUM(cd.amount), 0) as sq_total,
+           COUNT(cd.id) as sq_count
+    FROM manager_reports mr
+    JOIN venues v ON v.id = mr.venue_id
+    LEFT JOIN square_comp_details cd ON cd.venue_id = mr.venue_id AND cd.date = mr.date
+    WHERE mr.date >= ? AND mr.date <= ?`;
+  const p = [f, t];
+  if (venue_id) { q += ' AND mr.venue_id = ?'; p.push(venue_id); }
+  q += ` GROUP BY mr.id, mr.date, mr.venue_id
+         HAVING COALESCE(mr.complimentary,0) > 0 OR COALESCE(SUM(cd.amount),0) > 0
+         ORDER BY mr.date DESC`;
+  res.json(db.prepare(q).all(...p).map(r => ({ ...r, difference: r.manager_total - r.sq_total })));
+});
+
+app.get('/api/discounts/daily', (req, res) => {
+  const { f, t, venue_id } = dailyParams(req);
+  let q = `
+    SELECT mr.date, mr.venue_id, v.name as venue_name,
+           COALESCE(mr.staff_discount, 0) as staff_discount,
+           COALESCE(mr.fnf_discount, 0) as fnf_discount,
+           COALESCE(mr.staff_discount, 0) + COALESCE(mr.fnf_discount, 0) as manager_total,
+           COALESCE(mr.staff_discount_notes, '') as staff_notes,
+           COALESCE(mr.fnf_discount_notes, '') as fnf_notes,
+           COALESCE(SUM(dd.amount), 0) as sq_total,
+           COUNT(dd.id) as sq_count
+    FROM manager_reports mr
+    JOIN venues v ON v.id = mr.venue_id
+    LEFT JOIN square_discount_details dd ON dd.venue_id = mr.venue_id AND dd.date = mr.date
+    WHERE mr.date >= ? AND mr.date <= ?`;
+  const p = [f, t];
+  if (venue_id) { q += ' AND mr.venue_id = ?'; p.push(venue_id); }
+  q += ` GROUP BY mr.id, mr.date, mr.venue_id
+         HAVING COALESCE(mr.staff_discount,0)+COALESCE(mr.fnf_discount,0) > 0 OR COALESCE(SUM(dd.amount),0) > 0
+         ORDER BY mr.date DESC`;
+  res.json(db.prepare(q).all(...p).map(r => ({ ...r, difference: r.manager_total - r.sq_total })));
+});
+
+app.get('/api/gift-cards/daily', (req, res) => {
+  const { f, t, venue_id } = dailyParams(req);
+  let q = `
+    SELECT mr.date, mr.venue_id, v.name as venue_name,
+           COALESCE(mr.gift_cards_redeemed, 0) as manager_total,
+           COALESCE(SUM(gd.amount), 0) as sq_total,
+           COUNT(gd.id) as sq_count
+    FROM manager_reports mr
+    JOIN venues v ON v.id = mr.venue_id
+    LEFT JOIN square_gift_card_details gd ON gd.venue_id = mr.venue_id AND gd.date = mr.date AND gd.activity_type = 'REDEEM'
+    WHERE mr.date >= ? AND mr.date <= ?`;
+  const p = [f, t];
+  if (venue_id) { q += ' AND mr.venue_id = ?'; p.push(venue_id); }
+  q += ` GROUP BY mr.id, mr.date, mr.venue_id
+         HAVING COALESCE(mr.gift_cards_redeemed,0) > 0 OR COALESCE(SUM(gd.amount),0) > 0
+         ORDER BY mr.date DESC`;
+  res.json(db.prepare(q).all(...p).map(r => ({ ...r, difference: r.manager_total - r.sq_total })));
+});
+
 app.listen(PORT, () => console.log(`Reconcile API running on http://localhost:${PORT}`));
