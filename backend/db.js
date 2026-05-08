@@ -142,6 +142,33 @@ const migrations = [
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(venue_id, date, category)
   )`,
+  `CREATE TABLE IF NOT EXISTS report_petty_cash_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    report_id INTEGER NOT NULL,
+    amount REAL DEFAULT 0,
+    notes TEXT DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS report_staff_discount_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    report_id INTEGER NOT NULL,
+    amount REAL DEFAULT 0,
+    name TEXT DEFAULT '',
+    reason TEXT DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS report_fnf_discount_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    report_id INTEGER NOT NULL,
+    amount REAL DEFAULT 0,
+    name TEXT DEFAULT '',
+    reason TEXT DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS report_comp_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    report_id INTEGER NOT NULL,
+    amount REAL DEFAULT 0,
+    notes TEXT DEFAULT '',
+    description TEXT DEFAULT ''
+  )`,
 ];
 for (const sql of migrations) { try { db.exec(sql); } catch {} }
 
@@ -152,6 +179,10 @@ try { db.exec(`CREATE INDEX IF NOT EXISTS idx_sd_date_venue ON square_data(date,
 try { db.exec(`CREATE INDEX IF NOT EXISTS idx_dn_date_venue ON discrepancy_notes(date, venue_id)`); } catch {}
 try { db.exec(`CREATE INDEX IF NOT EXISTS idx_srd_date ON square_refund_details(date, venue_id)`); } catch {}
 try { db.exec(`CREATE INDEX IF NOT EXISTS idx_sdd_date ON square_discount_details(date, venue_id)`); } catch {}
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_rpce_report ON report_petty_cash_entries(report_id)`); } catch {}
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_rsde_report ON report_staff_discount_entries(report_id)`); } catch {}
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_rfde_report ON report_fnf_discount_entries(report_id)`); } catch {}
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_rce_report  ON report_comp_entries(report_id)`); } catch {}
 
 const venueCount = db.prepare('SELECT COUNT(*) as count FROM venues').get();
 if (venueCount.count === 0) {
