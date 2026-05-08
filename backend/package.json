@@ -15,6 +15,7 @@
     "multer": "^2.0.0",
     "pdf-parse": "^1.1.1",
     "square": "^37.0.0",
+    "pg": "^8.11.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
