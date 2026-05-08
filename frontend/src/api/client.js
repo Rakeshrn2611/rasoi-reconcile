@@ -27,15 +27,12 @@ export const api = {
   reconcile: (venue_id, date) => request(`/reconcile?${new URLSearchParams({ venue_id, date })}`),
   getSummary: (params = {}) => request(`/reconcile/summary?${new URLSearchParams(params)}`),
 
-  getRefunds:       (params = {}) => request(`/refunds?${new URLSearchParams(params)}`),
-  getComps:         (params = {}) => request(`/comps?${new URLSearchParams(params)}`),
-  getDiscounts:     (params = {}) => request(`/discounts?${new URLSearchParams(params)}`),
-  getGiftCards:     (params = {}) => request(`/gift-cards?${new URLSearchParams(params)}`),
-  getRefundsDaily:   (params = {}) => request(`/refunds/daily?${new URLSearchParams(params)}`),
-  getCompsDaily:     (params = {}) => request(`/comps/daily?${new URLSearchParams(params)}`),
-  getDiscountsDaily: (params = {}) => request(`/discounts/daily?${new URLSearchParams(params)}`),
-  getGiftCardsDaily: (params = {}) => request(`/gift-cards/daily?${new URLSearchParams(params)}`),
+  getRefunds:   (params = {}) => request(`/refunds?${new URLSearchParams(params)}`),
+  getComps:     (params = {}) => request(`/comps?${new URLSearchParams(params)}`),
+  getDiscounts: (params = {}) => request(`/discounts?${new URLSearchParams(params)}`),
+  getGiftCards: (params = {}) => request(`/gift-cards?${new URLSearchParams(params)}`),
   updateReport: (id, data) => request(`/reports/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
+  getReportEntries: (id) => request(`/reports/${id}/entries`),
 
   saveReconNotes: (venue_id, date, notes) => request('/square/notes', {
     method: 'PATCH',
