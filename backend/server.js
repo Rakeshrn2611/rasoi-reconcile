@@ -53,6 +53,57 @@ function storeSquareDetails(venue_id, date, data) {
     insGC.run(venue_id, date, g.activity_type, g.payment_id, g.receipt_number, g.amount, g.gift_card_last4);
 }
 
+// ── Multi-entry helpers ───────────────────────────────────────────────────────
+
+function sumArr(arr) {
+  if (!Array.isArray(arr)) return null;
+  return arr.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+}
+
+function saveEntries(reportId, b) {
+  db.prepare('DELETE FROM report_petty_cash_entries     WHERE report_id=?').run(reportId);
+  db.prepare('DELETE FROM report_staff_discount_entries WHERE report_id=?').run(reportId);
+  db.prepare('DELETE FROM report_fnf_discount_entries   WHERE report_id=?').run(reportId);
+  db.prepare('DELETE FROM report_comp_entries           WHERE report_id=?').run(reportId);
+
+  const pc = Array.isArray(b.petty_cash_entries) ? b.petty_cash_entries : [];
+  const insPC = db.prepare('INSERT INTO report_petty_cash_entries (report_id,amount,notes) VALUES (?,?,?)');
+  for (const e of pc) {
+    const amt = parseFloat(e.amount) || 0;
+    if (amt > 0 || (e.notes || '').trim()) insPC.run(reportId, amt, (e.notes || '').trim());
+  }
+
+  const sd = Array.isArray(b.staff_discount_entries) ? b.staff_discount_entries : [];
+  const insSd = db.prepare('INSERT INTO report_staff_discount_entries (report_id,amount,name,reason) VALUES (?,?,?,?)');
+  for (const e of sd) {
+    const amt = parseFloat(e.amount) || 0;
+    if (amt > 0 || (e.name || '').trim()) insSd.run(reportId, amt, (e.name || '').trim(), (e.reason || '').trim());
+  }
+
+  const fnf = Array.isArray(b.fnf_discount_entries) ? b.fnf_discount_entries : [];
+  const insFnf = db.prepare('INSERT INTO report_fnf_discount_entries (report_id,amount,name,reason) VALUES (?,?,?,?)');
+  for (const e of fnf) {
+    const amt = parseFloat(e.amount) || 0;
+    if (amt > 0 || (e.name || '').trim()) insFnf.run(reportId, amt, (e.name || '').trim(), (e.reason || '').trim());
+  }
+
+  const comp = Array.isArray(b.comp_entries) ? b.comp_entries : [];
+  const insComp = db.prepare('INSERT INTO report_comp_entries (report_id,amount,notes,description) VALUES (?,?,?,?)');
+  for (const e of comp) {
+    const amt = parseFloat(e.amount) || 0;
+    if (amt > 0 || (e.notes || '').trim()) insComp.run(reportId, amt, (e.notes || '').trim(), (e.description || '').trim());
+  }
+}
+
+function loadEntries(reportId) {
+  return {
+    petty_cash_entries:        db.prepare('SELECT id,amount,notes FROM report_petty_cash_entries WHERE report_id=? ORDER BY id').all(reportId),
+    staff_discount_entries:    db.prepare('SELECT id,amount,name,reason FROM report_staff_discount_entries WHERE report_id=? ORDER BY id').all(reportId),
+    fnf_discount_entries:      db.prepare('SELECT id,amount,name,reason FROM report_fnf_discount_entries WHERE report_id=? ORDER BY id').all(reportId),
+    comp_entries:              db.prepare('SELECT id,amount,notes,description FROM report_comp_entries WHERE report_id=? ORDER BY id').all(reportId),
+  };
+}
+
 function getSquareDetails(venue_id, date) {
   return {
     refunds:    db.prepare('SELECT * FROM square_refund_details   WHERE venue_id=? AND date=? ORDER BY amount DESC').all(venue_id, date),
@@ -231,10 +282,20 @@ app.post('/api/reports', async (req, res) => {
     const card_sales          = n(b.card_sales);
     const deposits_used       = n(b.deposits_used);
     const gift_cards_redeemed = n(b.gift_cards_redeemed);
-    const petty_cash          = n(b.petty_cash);
+    // Use entry-array sum when present, else fall back to flat field (backward compat)
+    const petty_cash     = sumArr(b.petty_cash_entries)     ?? n(b.petty_cash);
+    const staff_discount = sumArr(b.staff_discount_entries) ?? n(b.staff_discount);
+    const fnf_discount   = sumArr(b.fnf_discount_entries)   ?? n(b.fnf_discount);
+    const complimentary  = sumArr(b.comp_entries)           ?? n(b.complimentary);
 
     const grand_total = cash_sales + card_sales + deposits_used + gift_cards_redeemed + petty_cash;
     const total_sales = cash_sales + card_sales;
+
+    // Derive legacy notes from first entry for backward compat reads
+    const firstPettyNote = Array.isArray(b.petty_cash_entries) && b.petty_cash_entries[0] ? (b.petty_cash_entries[0].notes || '') : t(b.petty_cash_notes);
+    const firstStaffNote = Array.isArray(b.staff_discount_entries) && b.staff_discount_entries[0] ? (b.staff_discount_entries[0].name || '') : t(b.staff_discount_notes);
+    const firstFnfNote   = Array.isArray(b.fnf_discount_entries)   && b.fnf_discount_entries[0]   ? (b.fnf_discount_entries[0].name || '')   : t(b.fnf_discount_notes);
+    const firstCompNote  = Array.isArray(b.comp_entries)           && b.comp_entries[0]           ? (b.comp_entries[0].notes || '')          : t(b.complimentary_notes);
 
     const result = db.prepare(`
       INSERT INTO manager_reports
@@ -255,13 +316,14 @@ app.post('/api/reports', async (req, res) => {
       deposits_used, gift_cards_redeemed,
       notes_50, notes_20, notes_10, notes_5,
       coins_200, coins_100, coins_50, coins_20, coins_10, coins_2, coins_1,
-      physical_cash, petty_cash, t(b.petty_cash_notes),
-      n(b.staff_discount), t(b.staff_discount_notes),
-      n(b.fnf_discount), t(b.fnf_discount_notes),
-      n(b.complimentary), t(b.complimentary_notes),
+      physical_cash, petty_cash, firstPettyNote,
+      staff_discount, firstStaffNote,
+      fnf_discount, firstFnfNote,
+      complimentary, firstCompNote,
       n(b.card_tips), n(b.cash_tips),
       n(b.manager_refunds), t(b.manager_refund_notes)
     );
+    saveEntries(result.lastInsertRowid, b);
     return res.json({ id: result.lastInsertRowid, venue_id: b.venue_id, date: b.date,
       cash_sales, card_sales, total_sales, grand_total, physical_cash, petty_cash });
   } catch (err) {
@@ -300,9 +362,17 @@ app.put('/api/reports/:id', async (req, res) => {
     const card_sales          = n(b.card_sales);
     const deposits_used       = n(b.deposits_used);
     const gift_cards_redeemed = n(b.gift_cards_redeemed);
-    const petty_cash          = n(b.petty_cash);
+    const petty_cash     = sumArr(b.petty_cash_entries)     ?? n(b.petty_cash);
+    const staff_discount = sumArr(b.staff_discount_entries) ?? n(b.staff_discount);
+    const fnf_discount   = sumArr(b.fnf_discount_entries)   ?? n(b.fnf_discount);
+    const complimentary  = sumArr(b.comp_entries)           ?? n(b.complimentary);
     const grand_total = cash_sales + card_sales + deposits_used + gift_cards_redeemed + petty_cash;
     const total_sales = cash_sales + card_sales;
+
+    const firstPettyNote = Array.isArray(b.petty_cash_entries) && b.petty_cash_entries[0] ? (b.petty_cash_entries[0].notes || '') : t(b.petty_cash_notes);
+    const firstStaffNote = Array.isArray(b.staff_discount_entries) && b.staff_discount_entries[0] ? (b.staff_discount_entries[0].name || '') : t(b.staff_discount_notes);
+    const firstFnfNote   = Array.isArray(b.fnf_discount_entries)   && b.fnf_discount_entries[0]   ? (b.fnf_discount_entries[0].name || '')   : t(b.fnf_discount_notes);
+    const firstCompNote  = Array.isArray(b.comp_entries)           && b.comp_entries[0]           ? (b.comp_entries[0].notes || '')          : t(b.complimentary_notes);
 
     db.prepare(`
       UPDATE manager_reports SET
@@ -318,19 +388,20 @@ app.put('/api/reports/:id', async (req, res) => {
         manager_refunds=?, manager_refund_notes=?
       WHERE id=?
     `).run(
-      b.venue_id || b.venue_id, b.date, cash_sales, card_sales, total_sales, grand_total,
+      b.venue_id, b.date, cash_sales, card_sales, total_sales, grand_total,
       t(b.notes), t(b.shift_notes),
       deposits_used, gift_cards_redeemed,
       notes_50, notes_20, notes_10, notes_5,
       coins_200, coins_100, coins_50, coins_20, coins_10, coins_2, coins_1,
-      physical_cash, petty_cash, t(b.petty_cash_notes),
-      n(b.staff_discount), t(b.staff_discount_notes),
-      n(b.fnf_discount), t(b.fnf_discount_notes),
-      n(b.complimentary), t(b.complimentary_notes),
+      physical_cash, petty_cash, firstPettyNote,
+      staff_discount, firstStaffNote,
+      fnf_discount, firstFnfNote,
+      complimentary, firstCompNote,
       n(b.card_tips), n(b.cash_tips),
       n(b.manager_refunds), t(b.manager_refund_notes),
       req.params.id
     );
+    saveEntries(req.params.id, b);
     res.json({ ok: true, grand_total, physical_cash });
   } catch (err) {
     console.error(err);
@@ -339,8 +410,15 @@ app.put('/api/reports/:id', async (req, res) => {
 });
 
 app.delete('/api/reports/:id', (req, res) => {
-  db.prepare('DELETE FROM manager_reports WHERE id=?').run(req.params.id);
+  const id = req.params.id;
+  for (const t of ['report_petty_cash_entries','report_staff_discount_entries','report_fnf_discount_entries','report_comp_entries'])
+    db.prepare(`DELETE FROM ${t} WHERE report_id=?`).run(id);
+  db.prepare('DELETE FROM manager_reports WHERE id=?').run(id);
   res.json({ ok: true });
+});
+
+app.get('/api/reports/:id/entries', (req, res) => {
+  res.json(loadEntries(req.params.id));
 });
 
 // ── Square ────────────────────────────────────────────────────────────────────
@@ -554,9 +632,48 @@ app.get('/api/export/excel', (req, res) => {
     ]),
   ];
 
+  // Entry details sheet
+  let eq = `
+    SELECT mr.date, v.name as venue, 'Petty Cash' as category, e.amount, e.notes as detail, '' as name, '' as reason
+    FROM report_petty_cash_entries e
+    JOIN manager_reports mr ON mr.id=e.report_id
+    JOIN venues v ON v.id=mr.venue_id
+    WHERE mr.date>=? AND mr.date<=?
+    UNION ALL
+    SELECT mr.date, v.name, 'Staff Discount', e.amount, e.name, e.name, e.reason
+    FROM report_staff_discount_entries e
+    JOIN manager_reports mr ON mr.id=e.report_id
+    JOIN venues v ON v.id=mr.venue_id
+    WHERE mr.date>=? AND mr.date<=?
+    UNION ALL
+    SELECT mr.date, v.name, 'F&F Discount', e.amount, e.name, e.name, e.reason
+    FROM report_fnf_discount_entries e
+    JOIN manager_reports mr ON mr.id=e.report_id
+    JOIN venues v ON v.id=mr.venue_id
+    WHERE mr.date>=? AND mr.date<=?
+    UNION ALL
+    SELECT mr.date, v.name, 'Complimentary', e.amount, e.notes, e.description, ''
+    FROM report_comp_entries e
+    JOIN manager_reports mr ON mr.id=e.report_id
+    JOIN venues v ON v.id=mr.venue_id
+    WHERE mr.date>=? AND mr.date<=?
+    ORDER BY date DESC, category`;
+  if (venue_id) {
+    eq = eq.replace(/WHERE mr\.date>=\? AND mr\.date<=\?/g, 'WHERE mr.date>=? AND mr.date<=? AND mr.venue_id=?');
+    const ep = [f,t,venue_id, f,t,venue_id, f,t,venue_id, f,t,venue_id];
+    var entryRows = db.prepare(eq).all(...ep);
+  } else {
+    var entryRows = db.prepare(eq).all(f,t, f,t, f,t, f,t);
+  }
+  const wsEntries = XLSX.utils.aoa_to_sheet([
+    ['Date','Venue','Category','Amount','Detail / Name','Reason'],
+    ...entryRows.map(r => [r.date, r.venue, r.category, r.amount||0, r.detail||'', r.reason||'']),
+  ]);
+
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   XLSX.utils.book_append_sheet(wb, ws, 'Sales Report');
+  XLSX.utils.book_append_sheet(wb, wsEntries, 'Entry Details');
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
   const filename = `rasoi-sales-${f}-to-${t}.xlsx`;
@@ -709,99 +826,6 @@ app.patch('/api/discrepancies/status', (req, res) => {
     else db.prepare('INSERT INTO discrepancy_notes(venue_id,date,category,status,notes) VALUES(?,?,?,?,?)').run(venue_id,date,category,status||'unresolved',notes||'');
   }
   res.json({ ok: true });
-});
-
-// ── Category daily summary endpoints ─────────────────────────────────────────
-// Each joins manager_reports with the relevant detail table, grouping by day.
-// Only days with activity (manager total > 0 OR square total > 0) are returned.
-
-function dailyParams(req) {
-  const now = new Date();
-  const f = req.query.from || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-  const t = req.query.to   || now.toISOString().slice(0, 10);
-  return { f, t, venue_id: req.query.venue_id };
-}
-
-app.get('/api/refunds/daily', (req, res) => {
-  const { f, t, venue_id } = dailyParams(req);
-  let q = `
-    SELECT mr.date, mr.venue_id, v.name as venue_name,
-           COALESCE(mr.manager_refunds, 0) as manager_total,
-           COALESCE(mr.manager_refund_notes, '') as manager_notes,
-           COALESCE(SUM(rd.amount), 0) as sq_total,
-           COUNT(rd.id) as sq_count
-    FROM manager_reports mr
-    JOIN venues v ON v.id = mr.venue_id
-    LEFT JOIN square_refund_details rd ON rd.venue_id = mr.venue_id AND rd.date = mr.date
-    WHERE mr.date >= ? AND mr.date <= ?`;
-  const p = [f, t];
-  if (venue_id) { q += ' AND mr.venue_id = ?'; p.push(venue_id); }
-  q += ` GROUP BY mr.id, mr.date, mr.venue_id
-         HAVING COALESCE(mr.manager_refunds,0) > 0 OR COALESCE(SUM(rd.amount),0) > 0
-         ORDER BY mr.date DESC`;
-  res.json(db.prepare(q).all(...p).map(r => ({ ...r, difference: r.manager_total - r.sq_total })));
-});
-
-app.get('/api/comps/daily', (req, res) => {
-  const { f, t, venue_id } = dailyParams(req);
-  let q = `
-    SELECT mr.date, mr.venue_id, v.name as venue_name,
-           COALESCE(mr.complimentary, 0) as manager_total,
-           COALESCE(mr.complimentary_notes, '') as manager_notes,
-           COALESCE(SUM(cd.amount), 0) as sq_total,
-           COUNT(cd.id) as sq_count
-    FROM manager_reports mr
-    JOIN venues v ON v.id = mr.venue_id
-    LEFT JOIN square_comp_details cd ON cd.venue_id = mr.venue_id AND cd.date = mr.date
-    WHERE mr.date >= ? AND mr.date <= ?`;
-  const p = [f, t];
-  if (venue_id) { q += ' AND mr.venue_id = ?'; p.push(venue_id); }
-  q += ` GROUP BY mr.id, mr.date, mr.venue_id
-         HAVING COALESCE(mr.complimentary,0) > 0 OR COALESCE(SUM(cd.amount),0) > 0
-         ORDER BY mr.date DESC`;
-  res.json(db.prepare(q).all(...p).map(r => ({ ...r, difference: r.manager_total - r.sq_total })));
-});
-
-app.get('/api/discounts/daily', (req, res) => {
-  const { f, t, venue_id } = dailyParams(req);
-  let q = `
-    SELECT mr.date, mr.venue_id, v.name as venue_name,
-           COALESCE(mr.staff_discount, 0) as staff_discount,
-           COALESCE(mr.fnf_discount, 0) as fnf_discount,
-           COALESCE(mr.staff_discount, 0) + COALESCE(mr.fnf_discount, 0) as manager_total,
-           COALESCE(mr.staff_discount_notes, '') as staff_notes,
-           COALESCE(mr.fnf_discount_notes, '') as fnf_notes,
-           COALESCE(SUM(dd.amount), 0) as sq_total,
-           COUNT(dd.id) as sq_count
-    FROM manager_reports mr
-    JOIN venues v ON v.id = mr.venue_id
-    LEFT JOIN square_discount_details dd ON dd.venue_id = mr.venue_id AND dd.date = mr.date
-    WHERE mr.date >= ? AND mr.date <= ?`;
-  const p = [f, t];
-  if (venue_id) { q += ' AND mr.venue_id = ?'; p.push(venue_id); }
-  q += ` GROUP BY mr.id, mr.date, mr.venue_id
-         HAVING COALESCE(mr.staff_discount,0)+COALESCE(mr.fnf_discount,0) > 0 OR COALESCE(SUM(dd.amount),0) > 0
-         ORDER BY mr.date DESC`;
-  res.json(db.prepare(q).all(...p).map(r => ({ ...r, difference: r.manager_total - r.sq_total })));
-});
-
-app.get('/api/gift-cards/daily', (req, res) => {
-  const { f, t, venue_id } = dailyParams(req);
-  let q = `
-    SELECT mr.date, mr.venue_id, v.name as venue_name,
-           COALESCE(mr.gift_cards_redeemed, 0) as manager_total,
-           COALESCE(SUM(gd.amount), 0) as sq_total,
-           COUNT(gd.id) as sq_count
-    FROM manager_reports mr
-    JOIN venues v ON v.id = mr.venue_id
-    LEFT JOIN square_gift_card_details gd ON gd.venue_id = mr.venue_id AND gd.date = mr.date AND gd.activity_type = 'REDEEM'
-    WHERE mr.date >= ? AND mr.date <= ?`;
-  const p = [f, t];
-  if (venue_id) { q += ' AND mr.venue_id = ?'; p.push(venue_id); }
-  q += ` GROUP BY mr.id, mr.date, mr.venue_id
-         HAVING COALESCE(mr.gift_cards_redeemed,0) > 0 OR COALESCE(SUM(gd.amount),0) > 0
-         ORDER BY mr.date DESC`;
-  res.json(db.prepare(q).all(...p).map(r => ({ ...r, difference: r.manager_total - r.sq_total })));
 });
 
 app.listen(PORT, () => console.log(`Reconcile API running on http://localhost:${PORT}`));
